@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { PageStyle } from "../db/types";
 import { PAGE_STYLES } from "../page/PageBackground";
 import { PageStylePicker } from "../page/PageStylePicker";
+import { Icon } from "../shell/Icon";
 import { COVERS } from "./covers";
 import { NotebookCover } from "./NotebookCover";
 
@@ -68,29 +69,54 @@ export function NotebookForm({
       <div className="field">
         <span className="field-label">Cover</span>
         <div className="hscroll" style={{ paddingBottom: 8 }}>
-          {COVERS.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              onClick={() => setCover(c.id)}
-              aria-pressed={cover === c.id}
-              aria-label={c.label}
-              style={{
-                flex: "0 0 auto",
-                padding: 4,
-                border: cover === c.id ? "2px solid var(--accent)" : "2px solid transparent",
-                borderRadius: 10,
-                background: "none",
-                cursor: "pointer",
-              }}
-            >
-              <NotebookCover cover={c.id} name="" width={52} />
-              <div className="small" style={{ marginTop: 4 }}>
-                {cover === c.id ? "✓ " : ""}
-                {c.label}
-              </div>
-            </button>
-          ))}
+          {/* 1fr columns in a max-content grid all take the widest option's width. */}
+          <div style={{ display: "grid", gridAutoFlow: "column", gridAutoColumns: "1fr", gap: 8, width: "max-content" }}>
+            {COVERS.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => setCover(c.id)}
+                aria-pressed={cover === c.id}
+                aria-label={c.label}
+                style={{
+                  position: "relative",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  padding: "6px 8px",
+                  border: cover === c.id ? "2px solid var(--primary)" : "2px solid transparent",
+                  borderRadius: 10,
+                  background: "none",
+                  cursor: "pointer",
+                }}
+              >
+                <NotebookCover cover={c.id} name="" width={52} />
+                <div className="small" style={{ marginTop: 6, whiteSpace: "nowrap", textAlign: "center" }}>
+                  {c.label}
+                </div>
+                {cover === c.id ? (
+                  <span
+                    aria-hidden
+                    style={{
+                      position: "absolute",
+                      top: 2,
+                      right: 2,
+                      width: 18,
+                      height: 18,
+                      borderRadius: "50%",
+                      background: "var(--primary)",
+                      color: "var(--primary-foreground)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Icon name="check" size={12} />
+                  </span>
+                ) : null}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
       <div className="field">
