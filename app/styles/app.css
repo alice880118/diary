@@ -209,15 +209,16 @@ a {
   -webkit-overflow-scrolling: touch;
 }
 
+/* The nav takes real layout space, so nothing (inline padding included) can end up beneath it. */
 .screen.has-nav .screen-body {
-  padding-bottom: calc(var(--nav-h) + var(--safe-b) + 12px);
+  flex: 1 1 0;
+  min-height: 0;
+  height: calc(100dvh - var(--header-h) - var(--nav-h) - var(--safe-b));
 }
 
 .bottom-nav {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  position: relative;
+  flex: 0 0 auto;
   height: calc(var(--nav-h) + var(--safe-b));
   padding: 6px 12px var(--safe-b);
   display: flex;

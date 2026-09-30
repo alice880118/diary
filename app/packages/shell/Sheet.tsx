@@ -1,5 +1,16 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Icon } from "./Icon";
+
+/**
+ * Sheets render into the app frame, not inside the screen: a scroll container
+ * (iOS `-webkit-overflow-scrolling`) forms its own stacking context, which would
+ * trap the sheet under the bottom nav and shift it with the scroll position.
+ */
+function portalTarget(): HTMLElement | null {
+  if (typeof document === "undefined") return null;
+  return document.querySelector<HTMLElement>(".app-frame") ?? document.body;
+}
 
 /**
  * Bottom sheet that stays above the virtual keyboard by tracking
@@ -55,10 +66,11 @@ export function Sheet({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  if (!open) {
+  const target = open ? portalTarget() : null;
+  if (!open || !target) {
     return null;
   }
-  return (
+  return createPortal(
     <div className={`sheet-root${modal ? "" : " is-modeless"}`}>
       {modal ? <div className="sheet-backdrop" onClick={onClose} /> : null}
       <section
@@ -78,7 +90,8 @@ export function Sheet({
         <div className="sheet-body">{children}</div>
         {footer ? <div className="sheet-foot">{footer}</div> : null}
       </section>
-    </div>
+    </div>,
+    target,
   );
 }
 
