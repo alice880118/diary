@@ -1,0 +1,79 @@
+.flipper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden;
+}
+
+.flipper-touch {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+  overflow: hidden;
+}
+
+.flipper-stage {
+  position: relative;
+  transform-origin: center center;
+  will-change: transform;
+}
+
+.flip-leaf {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 50%;
+  transform-style: preserve-3d;
+  z-index: 5;
+}
+
+.flip-front,
+.flip-back {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.flip-back {
+  transform: rotateY(180deg);
+  background: linear-gradient(90deg, #efe7da, #fbf7ef 40%, #f4ecdf);
+  border-radius: 10px 4px 4px 10px;
+  box-shadow: inset -12px 0 18px rgba(90, 70, 50, 0.12);
+}
+
+.flip-gloss {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.18) 0%,
+    rgba(0, 0, 0, 0) 20%,
+    rgba(255, 255, 255, 0.35) 45%,
+    rgba(0, 0, 0, 0.08) 60%,
+    rgba(0, 0, 0, 0) 80%
+  );
+  background-size: 250% 100%;
+  border-radius: 4px 10px 10px 4px;
+}
+
+.flip-under-shade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(40, 30, 20, 0.35), rgba(40, 30, 20, 0.05) 45%, rgba(40, 30, 20, 0));
+  border-radius: 4px 10px 10px 4px;
+}
+
+.flipper-controls {
+  flex: 0 0 56px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px calc(var(--safe-b));
+}

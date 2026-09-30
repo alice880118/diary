@@ -1,0 +1,14 @@
+{
+  "name": "Paper Collage Diary",
+  "short_name": "Collage Diary",
+  "start_url": "/diary",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "lang": "en",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
