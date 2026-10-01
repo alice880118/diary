@@ -43,6 +43,7 @@ export function ArtCanvas({
   overlayKey,
   onStroke,
   onImageDrag,
+  onDragStart,
   onMaskEnd,
   onLasso,
 }: {
@@ -54,6 +55,8 @@ export function ArtCanvas({
   overlayKey: unknown;
   onStroke?: (s: Stroke) => void;
   onImageDrag?: (dx: number, dy: number, done: boolean) => void;
+  /** Art-space point where a moveImage drag starts. */
+  onDragStart?: (x: number, y: number) => void;
   onMaskEnd?: () => void;
   onLasso?: (poly: number[]) => void;
 }) {
@@ -261,6 +264,7 @@ export function ArtCanvas({
       }
       case "moveImage":
         gesture.current = { kind: "move", x: p.x, y: p.y };
+        onDragStart?.(p.x, p.y);
         return;
       case "maskBrush": {
         const snapshot =

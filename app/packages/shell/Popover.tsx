@@ -12,6 +12,7 @@ export function Popover({
   title,
   bottom = 88,
   ignore,
+  canvasPassThrough = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -21,6 +22,8 @@ export function Popover({
   bottom?: number;
   /** Elements whose taps should not close the popover (e.g. the toggling tool button). */
   ignore?: React.RefObject<HTMLElement | null>[];
+  /** Keep open while the user edits on the canvas (e.g. dragging a crop box). */
+  canvasPassThrough?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -30,6 +33,7 @@ export function Popover({
       const t = e.target as Node;
       if (ref.current?.contains(t)) return;
       if (ignore?.some((r) => r.current?.contains(t))) return;
+      if (canvasPassThrough && t instanceof HTMLCanvasElement) return;
       // A tap on the canvas only dismisses; it must not also draw.
       if (t instanceof HTMLCanvasElement) {
         e.stopPropagation();
@@ -46,7 +50,7 @@ export function Popover({
       document.removeEventListener("pointerdown", onDown, true);
       window.removeEventListener("keydown", onKey);
     };
-  }, [open, onClose, ignore]);
+  }, [open, onClose, ignore, canvasPassThrough]);
 
   if (!open) return null;
   return (

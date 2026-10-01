@@ -30,6 +30,7 @@ import {
 import type { PenState } from "../drawing/PenPanel";
 import type { SaveStatus } from "../editor/useEditorDoc";
 import { MAX_PRINT_LAYERS, newPrintLayer } from "../print/layers";
+import { Dropdown } from "../shell/Dropdown";
 import { Icon } from "../shell/Icon";
 import { Sheet } from "../shell/Sheet";
 import { useToast } from "../shell/toast";
@@ -40,7 +41,6 @@ import { finishSticker } from "../sticker/save";
 import { ArtCanvas, type ArtTool } from "./ArtCanvas";
 import { BgRemoveSheet } from "./BgRemoveSheet";
 import { FinishSheet } from "./FinishSheet";
-import { PrintPanel, type MaskTool, type PrintView } from "./PrintPanel";
 import {
   BrushPopover,
   ColorButton,
@@ -56,9 +56,25 @@ import {
   useSketchBrushes,
   type SketchTool,
 } from "./SketchTools";
-import { StickerPanel } from "./StickerPanel";
 import { StickerPreview } from "./StickerPreview";
-import { TexturePanel } from "./TexturePanel";
+import {
+  CutPopover,
+  InkColorPopover,
+  InksSheet,
+  inkLabel,
+  MASK_TOOLS,
+  MaskSizePopover,
+  MaterialPopover,
+  PAPER_STRIP_H,
+  PaperSheet,
+  PaperStrip,
+  PRINT_VIEWS,
+  PrintParamsSheet,
+  TexturePopover,
+  type MaskTool,
+  type PrintView,
+} from "./StudioSteps";
+import { textureById } from "../textures/catalog";
 import "./create.css";
 
 type Step = "draw" | "paper" | "print" | "sticker";
@@ -118,15 +134,29 @@ export function CreateEditor({
   const [sketchTool, setSketchTool] = useState<SketchTool>("pen");
   const [color, setColor] = useState(SKETCH_COLORS[0]);
   const [brushes, setBrush] = useSketchBrushes();
-  const [pop, setPop] = useState<"brush" | "palette" | "image" | null>(null);
+  const [shine, setShine] = useState(false);
+  const [pop, setPop] = useState<
+    "brush" | "palette" | "image" | "texture" | "maskSize" | "inkColor" | "material" | "cut" | null
+  >(null);
   const [layersOpen, setLayersOpen] = useState(false);
+  const [paperOpen, setPaperOpen] = useState(false);
+  const [inksOpen, setInksOpen] = useState(false);
+  const [paramsOpen, setParamsOpen] = useState(false);
+  const [viewOpen, setViewOpen] = useState(false);
+  const viewRef = useRef<HTMLButtonElement>(null);
+  const texAdjustRef = useRef<HTMLButtonElement>(null);
+  const inkColorRef = useRef<HTMLButtonElement>(null);
+  const stickerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  /** Sticker canvas: the cut editor while the Cut popover edits a box or lasso, else the preview. */
+  const preview: "static" | "shine" | "crop" =
+    step === "sticker" && pop === "cut" && art.sticker.crop.kind !== "contour" ? "crop" : shine ? "shine" : "static";
+  const cropDrag = useRef<{ mode: "move" | "resize"; rect: { x: number; y: number; w: number; h: number } } | null>(null);
   const toolRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const colorRef = useRef<HTMLButtonElement>(null);
   const adjustRef = useRef<HTMLButtonElement>(null);
   const [maskTool, setMaskTool] = useState<MaskTool>("brush");
   const [brushSize, setBrushSize] = useState(48);
   const [printView, setPrintView] = useState<PrintView>("composite");
-  const [preview, setPreview] = useState<"static" | "shine" | "crop">("static");
   const [base, setBase] = useState<HTMLCanvasElement | null>(null);
   const [built, setBuilt] = useState<{ art: string; shape: string; w: number; h: number } | null>(null);
   const [buildError, setBuildError] = useState<string | null>(null);
@@ -364,9 +394,11 @@ export function CreateEditor({
     void commitMask(pLayer);
   };
 
-  const maskFromLayer = (artLayerId: string) => {
-    if (!pLayer || !rt) return;
-    const c = rt.printMasks.get(pLayer.id);
+  const maskFromLayer = (inkId: string, artLayerId: string) => {
+    const ink = art.print.layers.find((l) => l.id === inkId);
+    if (!ink || !rt) return;
+    setActivePrint(inkId);
+    const c = rt.printMasks.get(ink.id);
     if (!c) return;
     const src = renderSource(art, rt, 1, artLayerId);
     const ctx = ctx2d(c);
@@ -377,16 +409,17 @@ export function CreateEditor({
     ctx.fillStyle = "#fff";
     ctx.fillRect(0, 0, ART_W, ART_H);
     ctx.globalCompositeOperation = "source-over";
-    void commitMask(pLayer);
+    void commitMask(ink);
     toast("Area created from layer");
   };
 
-  const clearMask = () => {
-    if (!pLayer) return;
-    const c = rtRef.current?.printMasks.get(pLayer.id);
+  const clearMask = (inkId: string) => {
+    const ink = art.print.layers.find((l) => l.id === inkId);
+    if (!ink) return;
+    const c = rtRef.current?.printMasks.get(ink.id);
     if (!c) return;
     ctx2d(c).clearRect(0, 0, ART_W, ART_H);
-    void commitMask(pLayer);
+    void commitMask(ink);
   };
 
   const autoFitCrop = () => {
@@ -440,7 +473,10 @@ export function CreateEditor({
     }
   } else if (step === "sticker" && preview === "crop" && art.sticker.crop.kind === "manual") {
     tool = { kind: "lasso", purpose: "crop" };
+  } else if (step === "sticker" && preview === "crop") {
+    tool = { kind: "moveImage" };
   }
+  if (step === "print" && !art.print.enabled) tool = { kind: "none" };
 
   const drawOverlay = (ctx: CanvasRenderingContext2D) => {
     if (step === "draw" && layer?.kind === "image") {
@@ -451,7 +487,7 @@ export function CreateEditor({
       ctx.scale(l.scale, l.scale);
       ctx.setLineDash([12 / l.scale, 8 / l.scale]);
       ctx.lineWidth = 3 / l.scale;
-      ctx.strokeStyle = "#3868b8";
+      ctx.strokeStyle = "#1b1b1b";
       ctx.strokeRect(
         -l.imgW / 2 + l.crop.l * l.imgW,
         -l.imgH / 2 + l.crop.t * l.imgH,
@@ -477,11 +513,28 @@ export function CreateEditor({
       const shape = cropBaseShape(art, rt, 0.5);
       const t = ctx2d(shape);
       t.globalCompositeOperation = "source-in";
-      t.fillStyle = "#3868b8";
+      t.fillStyle = "#1b1b1b";
       t.fillRect(0, 0, shape.width, shape.height);
-      ctx.globalAlpha = 0.18;
+      ctx.globalAlpha = 0.16;
       ctx.drawImage(shape, 0, 0, ART_W, ART_H);
       ctx.globalAlpha = 1;
+      const k = art.sticker.crop.kind;
+      if (k === "rect" || k === "circle") {
+        const r = art.sticker.crop.rect;
+        ctx.save();
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = "#1b1b1b";
+        ctx.setLineDash([14, 10]);
+        ctx.strokeRect(r.x, r.y, r.w, r.h);
+        ctx.setLineDash([]);
+        ctx.fillStyle = "#fff";
+        ctx.beginPath();
+        ctx.arc(r.x + r.w, r.y + r.h, 22, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.lineWidth = 6;
+        ctx.stroke();
+        ctx.restore();
+      }
     }
   };
 
@@ -558,7 +611,7 @@ export function CreateEditor({
             </button>
           </div>
         ) : null}
-        <div ref={stageRef} className={`studio-stage${step === "draw" ? " is-full" : ""}`}>
+        <div ref={stageRef} className={`studio-stage${step === "sticker" ? " is-lined" : ""}`}>
           {step === "sticker" && preview !== "crop" ? (
             built ? (
               <StickerPreview
@@ -592,7 +645,25 @@ export function CreateEditor({
                   layers: a.layers.map((l) => (l.id === id && l.kind === "draw" ? { ...l, strokes: [...l.strokes, s] } : l)),
                 }));
               }}
+              onDragStart={(x, y) => {
+                if (step !== "sticker") return;
+                const r = art.sticker.crop.rect;
+                const nearCorner = Math.hypot(x - (r.x + r.w), y - (r.y + r.h)) < 70;
+                cropDrag.current = { mode: nearCorner ? "resize" : "move", rect: { ...r } };
+              }}
               onImageDrag={(dx, dy, done) => {
+                if (step === "sticker") {
+                  const d = cropDrag.current;
+                  if (!d) return;
+                  const r = d.rect;
+                  const rect =
+                    d.mode === "move"
+                      ? { ...r, x: Math.round(r.x + dx), y: Math.round(r.y + dy) }
+                      : { ...r, w: Math.max(60, Math.round(r.w + dx)), h: Math.max(60, Math.round(r.h + dy)) };
+                  setSticker({ ...art.sticker, crop: { ...art.sticker.crop, rect } }, !done);
+                  if (done) cropDrag.current = null;
+                  return;
+                }
                 if (!imgLayer) return;
                 if (!imgDragOrigin.current) imgDragOrigin.current = { x: imgLayer.x, y: imgLayer.y };
                 const o = imgDragOrigin.current;
@@ -622,6 +693,65 @@ export function CreateEditor({
             <button type="button" className="canvas-chip" onClick={() => setLayersOpen(true)}>
               <Icon name={layer.kind === "image" ? "image2" : "layers"} size={15} />
               {layer.name}
+            </button>
+          ) : null}
+          {step === "paper" ? (
+            <button type="button" className="canvas-chip" onClick={() => setPaperOpen(true)}>
+              <Icon name="sheetPaper" size={15} />
+              {textureById(art.texture.id).name}
+            </button>
+          ) : null}
+          {step === "print" ? (
+            <>
+              <button type="button" className="canvas-chip" onClick={() => setInksOpen(true)}>
+                {pLayer ? (
+                  <>
+                    <span className="ink-chip is-lg" style={{ background: pLayer.color }} />
+                    {inkLabel(pLayer)}
+                  </>
+                ) : (
+                  <>
+                    <Icon name="plus" size={15} />
+                    Add ink
+                  </>
+                )}
+              </button>
+              <button
+                ref={viewRef}
+                type="button"
+                className={`float-group float-tr view-btn${printView !== "composite" ? " is-on" : ""}`}
+                aria-label="View"
+                aria-haspopup="menu"
+                onClick={() => setViewOpen((v) => !v)}
+              >
+                <Icon name={PRINT_VIEWS.find((v) => v.id === printView)?.icon ?? "viewComposite"} />
+                <Icon name="chev" size={14} />
+              </button>
+              <Dropdown
+                open={viewOpen}
+                anchor={viewRef}
+                align="end"
+                minWidth={190}
+                onClose={() => setViewOpen(false)}
+                items={PRINT_VIEWS.map((v) => ({
+                  icon: v.icon,
+                  label: v.id === printView ? <b>{v.label}</b> : v.label,
+                  highlighted: v.id === printView,
+                  trail: v.id === printView ? <Icon name="check" size={18} /> : undefined,
+                  onSelect: () => setPrintView(v.id),
+                }))}
+              />
+            </>
+          ) : null}
+          {step === "sticker" ? (
+            <button
+              type="button"
+              className={`float-group float-tr view-btn${shine ? " is-on" : ""}`}
+              aria-label="Shine preview"
+              aria-pressed={shine}
+              onClick={() => setShine((v) => !v)}
+            >
+              <Icon name="sparkle" />
             </button>
           ) : null}
         </div>
@@ -695,74 +825,191 @@ export function CreateEditor({
           </>
         ) : null}
 
-        <div className="create-panel" hidden={step === "draw"}>
-          {step === "paper" ? (
-            <TexturePanel
+        {step === "paper" ? (
+          <>
+            <PaperStrip
               value={art.texture.id}
-              strength={art.texture.strength}
-              onChange={(id, strength) => change((a) => ({ ...a, texture: { ...a.texture, id, strength } }), id === art.texture.id ? "continuous" : "discrete")}
+              onPick={(id) => change((a) => ({ ...a, texture: { ...a.texture, id } }))}
+              onAdjust={() => setPop(pop === "texture" ? null : "texture")}
+              onAll={() => {
+                setPop(null);
+                setPaperOpen(true);
+              }}
+              adjustRef={texAdjustRef}
+              adjustOpen={pop === "texture"}
             />
-          ) : null}
-
-          {step === "print" ? (
-            <PrintPanel
-              layers={art.print.layers}
-              enabled={art.print.enabled}
-              activeId={activePrint}
-              empty={emptyMasks}
-              tool={maskTool}
-              brushSize={brushSize}
-              view={printView}
-              artLayers={art.layers}
-              onEnabled={(v) => change((a) => ({ ...a, print: { ...a.print, enabled: v } }))}
-              onSelect={setActivePrint}
-              onAdd={() => {
-                if (art.print.layers.length >= MAX_PRINT_LAYERS) return;
-                const p = newPrintLayer(art.print.layers.length);
-                change((a) => ({ ...a, print: { ...a.print, layers: [...a.print.layers, p] } }));
-                setActivePrint(p.id);
-              }}
-              onUpdate={setPrintLayer}
-              onDuplicate={(id) => {
-                if (art.print.layers.length >= MAX_PRINT_LAYERS) return;
-                const src = art.print.layers.find((l) => l.id === id);
-                if (!src) return;
-                const copy: PrintLayer = { ...src, id: newId("pl"), name: `${src.name} copy` };
-                change((a) => {
-                  const i = a.print.layers.findIndex((l) => l.id === id);
-                  const layers = [...a.print.layers];
-                  layers.splice(i + 1, 0, copy);
-                  return { ...a, print: { ...a.print, layers } };
-                });
-                setActivePrint(copy.id);
-              }}
-              onDelete={(id) => {
-                change((a) => ({ ...a, print: { ...a.print, layers: a.print.layers.filter((l) => l.id !== id) } }));
-                setActivePrint(art.print.layers.find((l) => l.id !== id)?.id ?? null);
-              }}
-              onMove={(id, dir) =>
-                change((a) => {
-                  const i = a.print.layers.findIndex((l) => l.id === id);
-                  const j = i + dir;
-                  if (j < 0 || j >= a.print.layers.length) return a;
-                  const layers = [...a.print.layers];
-                  [layers[i], layers[j]] = [layers[j], layers[i]];
-                  return { ...a, print: { ...a.print, layers } };
-                })
-              }
-              onTool={setMaskTool}
-              onBrushSize={setBrushSize}
-              onView={setPrintView}
-              onFromLayer={maskFromLayer}
-              onClearMask={clearMask}
+            <TexturePopover
+              open={pop === "texture"}
+              onClose={() => setPop(null)}
+              texture={art.texture}
+              onChange={(patch) => change((a) => ({ ...a, texture: { ...a.texture, ...patch } }), "continuous")}
+              onEnd={() => change((a) => a, "end")}
+              ignore={[texAdjustRef]}
             />
-          ) : null}
+          </>
+        ) : null}
 
-          {step === "sticker" ? (
-            <StickerPanel s={art.sticker} onChange={setSticker} onAutoFit={autoFitCrop} previewMode={preview} onPreviewMode={setPreview} />
-          ) : null}
-        </div>
+        {step === "print" ? (
+          <>
+            <StudioBar>
+              <div className="studio-tools is-tight">
+                {MASK_TOOLS.map((t) => (
+                  <ToolButton
+                    key={t.id}
+                    icon={t.icon}
+                    label={t.label}
+                    active={maskTool === t.id}
+                    disabled={!pLayer || !art.print.enabled}
+                    btnRef={(el) => {
+                      toolRefs.current[`m-${t.id}`] = el;
+                    }}
+                    onClick={() => {
+                      if (t.id === maskTool && (t.id === "brush" || t.id === "erase")) {
+                        setPop(pop === "maskSize" ? null : "maskSize");
+                      } else {
+                        setMaskTool(t.id);
+                        setPop(null);
+                      }
+                    }}
+                  />
+                ))}
+              </div>
+              <div className="studio-sep" />
+              <div className="studio-right" style={{ gap: 2 }}>
+                <ColorButton
+                  color={pLayer?.color ?? "#c8c8c8"}
+                  disabled={!pLayer}
+                  btnRef={inkColorRef}
+                  onClick={() => pLayer && setPop(pop === "inkColor" ? null : "inkColor")}
+                />
+                <ToolButton icon="layers" label="Inks" count={art.print.layers.length} onClick={() => { setPop(null); setInksOpen(true); }} />
+                <ToolButton icon="sliders" label="Print settings" disabled={!pLayer} onClick={() => { setPop(null); setParamsOpen(true); }} />
+              </div>
+            </StudioBar>
+            <MaskSizePopover
+              open={pop === "maskSize"}
+              onClose={() => setPop(null)}
+              size={brushSize}
+              onSize={setBrushSize}
+              ignore={MASK_TOOLS.map((t) => ({ get current() { return toolRefs.current[`m-${t.id}`] ?? null; } }))}
+            />
+            <InkColorPopover
+              open={pop === "inkColor" && pLayer !== null}
+              onClose={() => setPop(null)}
+              color={pLayer?.color ?? ""}
+              onPick={(c) => pLayer && setPrintLayer({ ...pLayer, color: c })}
+              ignore={[inkColorRef]}
+            />
+          </>
+        ) : null}
+
+        {step === "sticker" ? (
+          <>
+            <StudioBar>
+              <div className="studio-tools is-spread">
+                <LabeledTool
+                  icon="material"
+                  label="Material"
+                  active={pop === "material"}
+                  btnRef={(el) => {
+                    stickerRefs.current.material = el;
+                  }}
+                  onClick={() => setPop(pop === "material" ? null : "material")}
+                />
+                <LabeledTool
+                  icon="scissors2"
+                  label="Cut"
+                  active={pop === "cut"}
+                  btnRef={(el) => {
+                    stickerRefs.current.cut = el;
+                  }}
+                  onClick={() => setPop(pop === "cut" ? null : "cut")}
+                />
+                <LabeledTool
+                  icon="sheetPaper"
+                  label={art.sticker.keepPaper ? "Paper" : "No paper"}
+                  active={art.sticker.keepPaper}
+                  onClick={() => setSticker({ ...art.sticker, keepPaper: !art.sticker.keepPaper })}
+                />
+              </div>
+            </StudioBar>
+            <MaterialPopover
+              open={pop === "material"}
+              onClose={() => setPop(null)}
+              s={art.sticker}
+              onChange={setSticker}
+              ignore={[{ get current() { return stickerRefs.current.material ?? null; } }]}
+            />
+            <CutPopover
+              open={pop === "cut"}
+              onClose={() => setPop(null)}
+              s={art.sticker}
+              onChange={setSticker}
+              onAutoFit={autoFitCrop}
+              ignore={[{ get current() { return stickerRefs.current.cut ?? null; } }]}
+            />
+          </>
+        ) : null}
       </div>
+
+      <PaperSheet open={paperOpen} onClose={() => setPaperOpen(false)} value={art.texture.id} onPick={(id) => change((a) => ({ ...a, texture: { ...a.texture, id } }))} />
+
+      <InksSheet
+        open={inksOpen}
+        onClose={() => setInksOpen(false)}
+        layers={art.print.layers}
+        rt={rt}
+        rtTick={rtTick}
+        empty={emptyMasks}
+        activeId={activePrint}
+        enabled={art.print.enabled}
+        artLayers={art.layers}
+        onEnabled={(v) => change((a) => ({ ...a, print: { ...a.print, enabled: v } }))}
+        onSelect={setActivePrint}
+        onAdd={() => {
+          if (art.print.layers.length >= MAX_PRINT_LAYERS) return;
+          const p = newPrintLayer(art.print.layers.length);
+          change((a) => ({ ...a, print: { ...a.print, layers: [...a.print.layers, p] } }));
+          setActivePrint(p.id);
+        }}
+        onUpdate={(p) => setPrintLayer(p)}
+        onDuplicate={(id) => {
+          if (art.print.layers.length >= MAX_PRINT_LAYERS) return;
+          const src = art.print.layers.find((l) => l.id === id);
+          if (!src) return;
+          const copy: PrintLayer = { ...src, id: newId("pl"), name: `${inkLabel(src)} copy` };
+          change((a) => {
+            const i = a.print.layers.findIndex((l) => l.id === id);
+            const layers = [...a.print.layers];
+            layers.splice(i + 1, 0, copy);
+            return { ...a, print: { ...a.print, layers } };
+          });
+          setActivePrint(copy.id);
+        }}
+        onDelete={(id) => {
+          change((a) => ({ ...a, print: { ...a.print, layers: a.print.layers.filter((l) => l.id !== id) } }));
+          if (activePrint === id) setActivePrint(art.print.layers.find((l) => l.id !== id)?.id ?? null);
+        }}
+        onReorder={(id, to) =>
+          change((a) => {
+            const i = a.print.layers.findIndex((l) => l.id === id);
+            if (i < 0 || to < 0 || to >= a.print.layers.length || i === to) return a;
+            const layers = [...a.print.layers];
+            const [l] = layers.splice(i, 1);
+            layers.splice(to, 0, l);
+            return { ...a, print: { ...a.print, layers } };
+          })
+        }
+        onFromLayer={maskFromLayer}
+        onClearMask={clearMask}
+        onInkColor={(id) => {
+          setActivePrint(id);
+          setInksOpen(false);
+          setPop("inkColor");
+        }}
+      />
+
+      <PrintParamsSheet open={paramsOpen && step === "print"} onClose={() => setParamsOpen(false)} layer={pLayer} onUpdate={setPrintLayer} />
 
       <LayersSheet
         open={layersOpen}

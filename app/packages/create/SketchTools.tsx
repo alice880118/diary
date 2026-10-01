@@ -369,6 +369,79 @@ export function ImageAdjustPopover({
 }
 
 /* ------------------------------------------------------------------ */
+/* Drag-sortable rows (layers, inks)                                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Rows in display order (top first). Dragging the grip moves a row; onMove
+ * gets the display index it was dropped on.
+ */
+export function SortableRows<T extends { id: string; name: string }>({
+  items,
+  activeId,
+  onSelect,
+  onMove,
+  children,
+}: {
+  items: T[];
+  activeId: string | null;
+  onSelect: (id: string) => void;
+  onMove: (id: string, toDisplayIndex: number) => void;
+  children: (item: T) => ReactNode;
+}) {
+  const [drag, setDrag] = useState<{ id: string; startY: number; dy: number; rowH: number } | null>(null);
+  const from = drag ? items.findIndex((l) => l.id === drag.id) : -1;
+  const dropIndex = drag ? Math.max(0, Math.min(items.length - 1, from + Math.round(drag.dy / drag.rowH))) : -1;
+  return (
+    <div className="layer-list" role="list">
+      {items.map((l, i) => {
+        let shift = 0;
+        if (drag && l.id !== drag.id) {
+          if (from < i && i <= dropIndex) shift = -drag.rowH;
+          if (dropIndex <= i && i < from) shift = drag.rowH;
+        }
+        const dragging = drag?.id === l.id;
+        return (
+          <div
+            key={l.id}
+            role="listitem"
+            className={`layer-row2${l.id === activeId ? " is-active" : ""}${dragging ? " is-dragging" : ""}`}
+            style={{ transform: `translateY(${dragging ? drag.dy : shift}px)` }}
+            onClick={() => onSelect(l.id)}
+          >
+            <span
+              className="layer-grip"
+              aria-label={`Reorder ${l.name}`}
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+                const row = (e.currentTarget as HTMLElement).closest(".layer-row2") as HTMLElement | null;
+                setDrag({ id: l.id, startY: e.clientY, dy: 0, rowH: (row?.offsetHeight ?? 60) + 2 });
+              }}
+              onPointerMove={(e) => {
+                if (drag?.id !== l.id) return;
+                setDrag({ ...drag, dy: e.clientY - drag.startY });
+              }}
+              onPointerUp={() => {
+                if (drag?.id !== l.id) return;
+                const to = dropIndex;
+                setDrag(null);
+                if (to !== from) onMove(l.id, to);
+              }}
+              onPointerCancel={() => setDrag(null)}
+            >
+              <Icon name="grip" size={18} />
+            </span>
+            {children(l)}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* Layers sheet                                                        */
 /* ------------------------------------------------------------------ */
 
@@ -426,7 +499,6 @@ export function LayersSheet({
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const menuRef = useRef<HTMLButtonElement | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
-  const [drag, setDrag] = useState<{ id: string; startY: number; dy: number; rowH: number } | null>(null);
   const top = [...art.layers].reverse();
 
   useEffect(() => {
@@ -434,16 +506,8 @@ export function LayersSheet({
       setMenuFor(null);
       setPlusOpen(false);
       setRenaming(null);
-      setDrag(null);
     }
   }, [open]);
-
-  // Display index (top-first) the dragged row would land on.
-  const dropIndex = (() => {
-    if (!drag) return -1;
-    const from = top.findIndex((l) => l.id === drag.id);
-    return Math.max(0, Math.min(top.length - 1, from + Math.round(drag.dy / drag.rowH)));
-  })();
 
   const menuLayer = art.layers.find((l) => l.id === menuFor) ?? null;
 
@@ -466,101 +530,60 @@ export function LayersSheet({
         </button>
       }
     >
-      <div className="layer-list" role="list">
-        {top.map((l, i) => {
-          const active = l.id === activeId;
-          let shift = 0;
-          if (drag && l.id !== drag.id) {
-            const from = top.findIndex((x) => x.id === drag.id);
-            if (from < i && i <= dropIndex) shift = -drag.rowH;
-            if (dropIndex <= i && i < from) shift = drag.rowH;
-          }
-          const dragging = drag?.id === l.id;
-          return (
-            <div
-              key={l.id}
-              role="listitem"
-              className={`layer-row2${active ? " is-active" : ""}${dragging ? " is-dragging" : ""}`}
-              style={{ transform: `translateY(${dragging ? drag.dy : shift}px)` }}
-              onClick={() => onSelect(l.id)}
-            >
-              <span
-                className="layer-grip"
-                aria-label={`Reorder ${l.name}`}
-                onClick={(e) => e.stopPropagation()}
-                onPointerDown={(e) => {
-                  e.stopPropagation();
-                  (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-                  const row = (e.currentTarget as HTMLElement).closest(".layer-row2") as HTMLElement | null;
-                  setDrag({ id: l.id, startY: e.clientY, dy: 0, rowH: (row?.offsetHeight ?? 60) + 2 });
-                }}
-                onPointerMove={(e) => {
-                  if (drag?.id !== l.id) return;
-                  setDrag({ ...drag, dy: e.clientY - drag.startY });
-                }}
-                onPointerUp={() => {
-                  if (drag?.id !== l.id) return;
-                  const to = dropIndex;
-                  setDrag(null);
-                  const from = top.findIndex((x) => x.id === l.id);
-                  if (to !== from) onReorder(l.id, art.layers.length - 1 - to);
-                }}
-                onPointerCancel={() => setDrag(null)}
-              >
-                <Icon name="grip" size={18} />
-              </span>
-              <LayerThumb art={art} rt={rt} layer={l} />
-              <div className="layer-name">
-                {renaming === l.id ? (
-                  <input
-                    className="input"
-                    autoFocus
-                    defaultValue={l.name}
-                    onClick={(e) => e.stopPropagation()}
-                    onBlur={(e) => {
-                      onPatch(l.id, { name: e.target.value.trim() || l.name });
-                      setRenaming(null);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                      if (e.key === "Escape") setRenaming(null);
-                    }}
-                  />
-                ) : (
-                  <>
-                    <b>{l.name}</b>
-                    {l.kind === "image" ? <span>Image</span> : null}
-                  </>
-                )}
-              </div>
-              <button
-                type="button"
-                className="icon-btn"
-                style={l.visible ? undefined : { color: "#bbb" }}
-                aria-label={l.visible ? `Hide ${l.name}` : `Show ${l.name}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onPatch(l.id, { visible: !l.visible });
-                }}
-              >
-                <Icon name={l.visible ? "eye" : "eyeOff"} size={18} />
-              </button>
-              <button
-                type="button"
-                className={`icon-btn${menuFor === l.id ? " is-pressed" : ""}`}
-                aria-label={`More for ${l.name}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  menuRef.current = e.currentTarget;
-                  setMenuFor(menuFor === l.id ? null : l.id);
-                }}
-              >
-                <Icon name="more" size={18} />
-              </button>
+      <SortableRows items={top} activeId={activeId} onSelect={onSelect} onMove={(id, to) => onReorder(id, art.layers.length - 1 - to)}>
+        {(l) => (
+          <>
+            <LayerThumb art={art} rt={rt} layer={l} />
+            <div className="layer-name">
+              {renaming === l.id ? (
+                <input
+                  className="input"
+                  autoFocus
+                  defaultValue={l.name}
+                  onClick={(e) => e.stopPropagation()}
+                  onBlur={(e) => {
+                    onPatch(l.id, { name: e.target.value.trim() || l.name });
+                    setRenaming(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                    if (e.key === "Escape") setRenaming(null);
+                  }}
+                />
+              ) : (
+                <>
+                  <b>{l.name}</b>
+                  {l.kind === "image" ? <span>Image</span> : null}
+                </>
+              )}
             </div>
-          );
-        })}
-      </div>
+            <button
+              type="button"
+              className="icon-btn"
+              style={l.visible ? undefined : { color: "#bbb" }}
+              aria-label={l.visible ? `Hide ${l.name}` : `Show ${l.name}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onPatch(l.id, { visible: !l.visible });
+              }}
+            >
+              <Icon name={l.visible ? "eye" : "eyeOff"} size={18} />
+            </button>
+            <button
+              type="button"
+              className={`icon-btn${menuFor === l.id ? " is-pressed" : ""}`}
+              aria-label={`More for ${l.name}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                menuRef.current = e.currentTarget;
+                setMenuFor(menuFor === l.id ? null : l.id);
+              }}
+            >
+              <Icon name="more" size={18} />
+            </button>
+          </>
+        )}
+      </SortableRows>
       <Dropdown
         open={menuLayer !== null}
         anchor={menuRef}
