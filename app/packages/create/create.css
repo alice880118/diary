@@ -521,10 +521,11 @@
   color: #555;
 }
 
-.toggle {
+input[type="checkbox"].toggle {
   -webkit-appearance: none;
   appearance: none;
   position: relative;
+  flex: 0 0 40px;
   width: 40px;
   height: 24px;
   margin: 0;
@@ -534,7 +535,7 @@
   transition: background-color 0.15s;
 }
 
-.toggle::after {
+input[type="checkbox"].toggle::after {
   content: "";
   position: absolute;
   left: 3px;
@@ -546,11 +547,11 @@
   transition: transform 0.15s;
 }
 
-.toggle:checked {
+input[type="checkbox"].toggle:checked {
   background: var(--primary);
 }
 
-.toggle:checked::after {
+input[type="checkbox"].toggle:checked::after {
   transform: translateX(16px);
 }
 
