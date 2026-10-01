@@ -19,7 +19,7 @@ export function Popover({
   children: ReactNode;
   title?: ReactNode;
   /** Distance from the container bottom, in px (toolbar height + gap). */
-  bottom?: number;
+  bottom?: number | string;
   /** Elements whose taps should not close the popover (e.g. the toggling tool button). */
   ignore?: React.RefObject<HTMLElement | null>[];
   /** Keep open while the user edits on the canvas (e.g. dragging a crop box). */

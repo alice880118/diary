@@ -7,6 +7,7 @@ import { Dropdown } from "../shell/Dropdown";
 import { Icon, type IconName } from "../shell/Icon";
 import { Popover } from "../shell/Popover";
 import { Sheet } from "../shell/Sheet";
+import "./create.css";
 
 /* ------------------------------------------------------------------ */
 /* Step pill (header)                                                  */
@@ -90,7 +91,7 @@ export function ToolButton({
     <button
       ref={btnRef}
       type="button"
-      className={`tool-btn${active ? " is-active" : ""}`}
+      className={`st-tool${active ? " is-active" : ""}`}
       aria-label={label}
       title={label}
       aria-pressed={active}
@@ -117,7 +118,7 @@ export function LabeledTool({
   btnRef?: Ref<HTMLButtonElement>;
 }) {
   return (
-    <button ref={btnRef} type="button" className={`tool-btn is-labeled${active ? " is-active" : ""}`} aria-pressed={active} onClick={onClick}>
+    <button ref={btnRef} type="button" className={`st-tool is-labeled${active ? " is-active" : ""}`} aria-pressed={active} onClick={onClick}>
       <Icon name={icon} />
       <span>{label}</span>
     </button>
@@ -228,8 +229,10 @@ export function BrushPopover({
   color,
   onChange,
   ignore,
+  bottom,
 }: {
   open: boolean;
+  bottom?: number | string;
   onClose: () => void;
   tool: SketchTool;
   setting: BrushSetting;
@@ -241,7 +244,7 @@ export function BrushPopover({
   const erase = tool === "eraser";
   const w = Math.max(1, Math.min(setting.width * 0.5, 18));
   return (
-    <Popover open={open} onClose={onClose} title={label} ignore={ignore}>
+    <Popover open={open} onClose={onClose} title={label} ignore={ignore} bottom={bottom}>
       <div className="brush-preview">
         <svg width="220" height="24" viewBox="0 0 220 24" aria-hidden>
           <path
@@ -277,15 +280,17 @@ export function PalettePopover({
   color,
   onPick,
   ignore,
+  bottom,
 }: {
   open: boolean;
   onClose: () => void;
   color: string;
   onPick: (c: string) => void;
   ignore: RefObject<HTMLElement | null>[];
+  bottom?: number | string;
 }) {
   return (
-    <Popover open={open} onClose={onClose} ignore={ignore}>
+    <Popover open={open} onClose={onClose} ignore={ignore} bottom={bottom}>
       <div className="palette">
         <ColorDots
           colors={SKETCH_COLORS.map((c) => ({ value: c, label: c }))}
@@ -314,7 +319,7 @@ export function ColorButton({
 }) {
   const c = disabled ? "#c8c8c8" : color;
   return (
-    <button ref={btnRef} type="button" className="tool-btn" aria-label="Color" title="Color" onClick={onClick}>
+    <button ref={btnRef} type="button" className="st-tool" aria-label="Color" title="Color" onClick={onClick}>
       <span className="color-dot" style={{ background: c, boxShadow: `0 0 0 2px #fff, 0 0 0 3.5px ${c === "#ffffff" ? "#ccc" : c}` }} />
     </button>
   );

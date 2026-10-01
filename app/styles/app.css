@@ -533,7 +533,7 @@ input[type="radio"] {
   height: 16px;
 }
 
-/* Slider: 4px track, ink fill (Firefox; WebKit shows the plain track), 20px white thumb. */
+/* Slider: 4px track with ink fill (WebKit via --fill, see rangeFill.ts), 20px white thumb. */
 /* The box is taller than the thumb so it never overflows into clipped areas. */
 input[type="range"] {
   -webkit-appearance: none;
@@ -550,7 +550,7 @@ input[type="range"] {
 input[type="range"]::-webkit-slider-runnable-track {
   height: 4px;
   border-radius: 2px;
-  background: #e8e8e5;
+  background: linear-gradient(to right, var(--primary) var(--fill, 0%), #e8e8e5 var(--fill, 0%));
 }
 
 input[type="range"]::-webkit-slider-thumb {

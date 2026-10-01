@@ -1,9 +1,13 @@
 /* Offline cache: network-first for navigations, cache-first for built assets. */
-const CACHE = "diary-v2";
+const CACHE = "diary-v3";
 const SHELL = [
   "/",
   "/manifest.webmanifest",
   "/icon.svg",
+  "/icon-192.png",
+  "/icon-512.png",
+  "/apple-touch-icon.png",
+  "/favicon-32.png",
   "/fonts/poppins-latin-400.woff2",
   "/fonts/poppins-latin-500.woff2",
   "/fonts/poppins-latin-600.woff2",
