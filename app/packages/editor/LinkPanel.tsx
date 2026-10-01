@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
-import type { LinkObject } from "../db/types";
-import { normalizeUrl } from "../page/links";
+import type { LinkDisplay, LinkObject, LinkShape } from "../db/types";
+import { linkBox, normalizeUrl } from "../page/links";
 import { LinkView } from "../page/ObjectViews";
 import { Sheet } from "../shell/Sheet";
 
 export interface LinkDraft {
   url: string;
   title: string;
-  display: "text" | "card";
+  display: LinkDisplay;
+  shape?: LinkShape;
+  color?: string;
 }
 
 export function LinkPanel({
@@ -23,7 +25,7 @@ export function LinkPanel({
 }) {
   const [url, setUrl] = useState("");
   const [title, setTitle] = useState("");
-  const [display, setDisplay] = useState<"text" | "card">("card");
+  const [display, setDisplay] = useState<LinkDisplay>("card");
   const [touched, setTouched] = useState(false);
 
   useEffect(() => {
@@ -42,8 +44,7 @@ export function LinkPanel({
     type: "link",
     x: 0,
     y: 0,
-    w: display === "card" ? 640 : 520,
-    h: display === "card" ? 170 : 60,
+    ...linkBox(display),
     rot: 0,
     z: 0,
     locked: false,
@@ -51,6 +52,8 @@ export function LinkPanel({
     title,
     display,
     meta: initial?.url === normalized ? initial.meta : null,
+    shape: initial?.shape,
+    color: initial?.color,
   };
   const k = 300 / preview.w;
 
@@ -70,7 +73,7 @@ export function LinkPanel({
             onClick={() => {
               setTouched(true);
               if (normalized) {
-                onSave({ url: normalized, title: title.trim(), display });
+                onSave({ url: normalized, title: title.trim(), display, shape: initial?.shape, color: initial?.color });
               }
             }}
           >

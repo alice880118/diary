@@ -8,7 +8,7 @@ import { duplicatePage, getSticker, listStickers, putAsset, trashPage } from "..
 import type { LinkObject, NoteObject, Page, PageObject, Sticker, TextObject } from "../db/types";
 import { DEFAULT_PEN, PenPanel, type PenState } from "../drawing/PenPanel";
 import { DateSheet } from "../notebook/DateSheet";
-import { fetchLinkMeta, openExternal } from "../page/links";
+import { fetchLinkMeta, linkBox, openExternal } from "../page/links";
 import { PageStylePicker } from "../page/PageStylePicker";
 import { Icon, type IconName } from "../shell/Icon";
 import { AppHeader } from "../shell/Layout";
@@ -254,8 +254,12 @@ export function PageEditor({
         url: d.url,
         title: d.title,
         display: d.display,
-        w: d.display === "card" ? Math.max(existing.w, 560) : 520,
-        h: d.display === "card" ? 170 : 60,
+        ...(d.shape ? { shape: d.shape } : {}),
+        ...(d.color ? { color: d.color } : {}),
+        // Sticker/tag keep a user-resized box while their display is unchanged.
+        ...((d.display === "sticker" || d.display === "tag") && existing.display === d.display
+          ? {}
+          : linkBox(d.display, existing.w)),
         meta,
       } as Partial<LinkObject>);
     } else {
@@ -264,8 +268,7 @@ export function PageEditor({
         type: "link",
         x: 450,
         y: 780 + jitter(),
-        w: d.display === "card" ? 640 : 520,
-        h: d.display === "card" ? 170 : 60,
+        ...linkBox(d.display),
         rot: 0,
         z: 0,
         locked: false,
@@ -273,6 +276,8 @@ export function PageEditor({
         title: d.title,
         display: d.display,
         meta,
+        ...(d.shape ? { shape: d.shape } : {}),
+        ...(d.color ? { color: d.color } : {}),
       };
       id = o.id;
       addObject(o);

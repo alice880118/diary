@@ -5,7 +5,7 @@ import { useLive } from "~/packages/db/events";
 import { formatTimestamp } from "~/packages/db/id";
 import { describeError } from "~/packages/db/idb";
 import { collectGarbage, getSettings, updateSettings } from "~/packages/db/repo";
-import type { MotionPref } from "~/packages/db/types";
+import { SCHEMA_VERSION, type MotionPref } from "~/packages/db/types";
 import { Icon } from "~/packages/shell/Icon";
 import { AppHeader, BackButton, Screen } from "~/packages/shell/Layout";
 import { Sheet } from "~/packages/shell/Sheet";
@@ -202,7 +202,7 @@ export default function Settings() {
         <Icon name="chevronRight" size={18} />
       </Link>
 
-      <p className="muted small" style={{ marginTop: 24, textAlign: "center" }}>Paper Collage Diary · Data format v{settings.data?.schemaVersion ?? 1}</p>
+      <p className="muted small" style={{ marginTop: 24, textAlign: "center" }}>Paper Collage Diary · Data format v{SCHEMA_VERSION}</p>
 
       <Sheet
         open={plan !== null}

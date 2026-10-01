@@ -1,4 +1,9 @@
-export const SCHEMA_VERSION = 1;
+/**
+ * Bumped when records can carry fields an older app would render wrongly.
+ * v2: note tape pattern/color, link sticker/tag display, paper texture scale.
+ * All v2 fields are optional; readers fall back to the v1 look when absent.
+ */
+export const SCHEMA_VERSION = 2;
 
 export const PAGE_W = 900;
 export const PAGE_H = 1200;
@@ -82,6 +87,18 @@ export interface StickerObject extends ObjectBase {
 export type NoteFix = "tape" | "pin" | "top";
 export type NoteShape = "square" | "rounded" | "torn" | "cloud";
 
+export type TapePattern =
+  | "solid"
+  | "stripe"
+  | "diagonal"
+  | "dots"
+  | "gingham"
+  | "grid"
+  | "wave"
+  | "stars"
+  | "hearts"
+  | "floral";
+
 export const NOTE_BASE = 300;
 
 export interface NoteObject extends ObjectBase {
@@ -97,6 +114,9 @@ export interface NoteObject extends ObjectBase {
   anchor: { x: number; y: number };
   /** Sway strength 0..1 for the free edge. */
   sway: number;
+  /** Tape look when fix is "tape". Absent = the original peach diagonal tape. */
+  tapePattern?: TapePattern;
+  tapeColor?: string;
 }
 
 export interface LinkMeta {
@@ -107,12 +127,19 @@ export interface LinkMeta {
   fetchedAt?: number;
 }
 
+/** "card" / "text" are the v1 looks and stay valid for existing links. */
+export type LinkDisplay = "card" | "text" | "sticker" | "tag";
+export type LinkShape = "circle" | "square" | "triangle" | "hexagon" | "star";
+
 export interface LinkObject extends ObjectBase {
   type: "link";
   url: string;
   title: string;
-  display: "text" | "card";
+  display: LinkDisplay;
   meta: LinkMeta | null;
+  /** Sticker display only; absent = circle / default color. */
+  shape?: LinkShape;
+  color?: string;
 }
 
 export type PageObject =
@@ -216,7 +243,8 @@ export interface Artwork {
   w: number;
   h: number;
   layers: ArtLayer[];
-  texture: { id: string; strength: number };
+  /** scale: texture size multiplier (1 = 100%); absent on v1 artworks = 1. */
+  texture: { id: string; strength: number; scale?: number };
   print: { enabled: boolean; layers: PrintLayer[] };
   sticker: StickerSettings;
   stickerId: string | null;

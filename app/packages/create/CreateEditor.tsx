@@ -680,7 +680,7 @@ export function CreateEditor({
             <TexturePanel
               value={art.texture.id}
               strength={art.texture.strength}
-              onChange={(id, strength) => change((a) => ({ ...a, texture: { id, strength } }), id === art.texture.id ? "continuous" : "discrete")}
+              onChange={(id, strength) => change((a) => ({ ...a, texture: { ...a.texture, id, strength } }), id === art.texture.id ? "continuous" : "discrete")}
             />
           ) : null}
 

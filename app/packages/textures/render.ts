@@ -5,6 +5,11 @@ interface HeightEntry {
   height: Float32Array;
 }
 
+/** Texture size multiplier stored on an artwork; v1 artworks have none (= 1). */
+export function textureScaleOf(t: { scale?: number }): number {
+  return typeof t.scale === "number" && t.scale > 0 ? t.scale : 1;
+}
+
 const heightCache: HeightEntry[] = [];
 const MAX_CACHE = 5;
 
