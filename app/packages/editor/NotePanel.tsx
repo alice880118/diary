@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { NOTE_BASE, type NoteObject, type Stroke } from "../db/types";
 import { LiveInk } from "../drawing/liveInk";
 import { StrokeCanvas } from "../drawing/StrokeCanvas";
-import { NOTE_COLORS, NOTE_FIXES, NOTE_SHAPES, NoteView } from "../page/ObjectViews";
+import { NOTE_COLORS, NOTE_FIXES, NOTE_SHAPES, NoteView, TAPE_COLORS, TAPE_PATTERNS, tapeFill } from "../page/ObjectViews";
+import { ColorDots } from "../shell/ColorDots";
 import { Sheet } from "../shell/Sheet";
 
 const PREVIEW_W = 200;
@@ -106,7 +107,6 @@ export function NotePanel({
 }) {
   const [note, setNote] = useState<NoteObject | null>(initial);
   const [tab, setTab] = useState<"text" | "ink">("text");
-  const [swayKey, setSwayKey] = useState(0);
 
   useEffect(() => {
     if (open) {
@@ -120,6 +120,7 @@ export function NotePanel({
   }
   const patch = (p: Partial<NoteObject>) => setNote({ ...note, ...p });
   const k = PREVIEW_W / note.w;
+  const tapeLabel = TAPE_PATTERNS.find((t) => t.id === note.tapePattern)?.label ?? "Original";
 
   return (
     <Sheet
@@ -138,40 +139,25 @@ export function NotePanel({
         </div>
       }
     >
-      <div className="row" style={{ alignItems: "flex-start", gap: 14, marginBottom: 12 }}>
-        <div
-          style={{
-            position: "relative",
-            width: PREVIEW_W + 20,
-            height: note.h * k + 30,
-            background: "#fffdf8",
-            borderRadius: 8,
-            boxShadow: "inset 0 0 0 1px var(--line)",
-            flex: "0 0 auto",
-          }}
-        >
+      <div className="note-preview">
+        <div style={{ position: "relative", width: PREVIEW_W, height: note.h * k }}>
           <div
             style={{
               position: "absolute",
-              left: 10,
-              top: 18,
+              left: 0,
+              top: 0,
               width: note.w,
               height: note.h,
               transform: `scale(${k})`,
               transformOrigin: "0 0",
             }}
           >
-            <NoteView o={note} swayKey={swayKey} still={false} pixelScale={k} />
+            <NoteView o={note} swayKey={0} still pixelScale={k} />
           </div>
-        </div>
-        <div style={{ flex: 1 }}>
-          <button type="button" className="btn btn-sm" onClick={() => setSwayKey((n) => n + 1)}>
-            Preview sway
-          </button>
-          <p className="muted small">The anchor stays put while loose edges sway and settle. Paused while editing or dragging.</p>
         </div>
       </div>
 
+      <div className="section-title">Text</div>
       <div className="tabs" style={{ marginBottom: 10 }}>
         <button type="button" className={`tab${tab === "text" ? " is-active" : ""}`} onClick={() => setTab("text")}>
           Typing
@@ -198,18 +184,7 @@ export function NotePanel({
       )}
 
       <div className="section-title">Paper color</div>
-      <div className="row-wrap">
-        {NOTE_COLORS.map((c) => (
-          <button
-            key={c.id}
-            type="button"
-            className={`swatch${note.color === c.id ? " is-active" : ""}`}
-            style={{ background: c.id }}
-            aria-label={c.label}
-            onClick={() => patch({ color: c.id })}
-          />
-        ))}
-      </div>
+      <ColorDots colors={NOTE_COLORS.map((c) => ({ value: c.id, label: c.label }))} value={note.color} onChange={(color) => patch({ color })} />
       <div className="section-title">Shape</div>
       <div className="row-wrap">
         {NOTE_SHAPES.map((s) => (
@@ -231,6 +206,35 @@ export function NotePanel({
           </button>
         ))}
       </div>
+      {note.fix === "tape" ? (
+        <>
+          <div className="section-title row-between">
+            <span>Tape pattern</span>
+            <span className="muted small">{tapeLabel}</span>
+          </div>
+          <div className="tape-grid">
+            {TAPE_PATTERNS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                className={`tape-cell${note.tapePattern === t.id ? " is-active" : ""}`}
+                aria-label={t.label}
+                aria-pressed={note.tapePattern === t.id}
+                onClick={() => patch({ tapePattern: t.id, tapeColor: note.tapeColor ?? TAPE_COLORS[0] })}
+              >
+                <i style={{ background: tapeFill(t.id, note.tapeColor) }} />
+                <span>{t.label}</span>
+              </button>
+            ))}
+          </div>
+          <div className="section-title">Tape color</div>
+          <ColorDots
+            colors={TAPE_COLORS.map((c) => ({ value: c, label: c }))}
+            value={note.tapePattern ? note.tapeColor ?? TAPE_COLORS[0] : ""}
+            onChange={(tapeColor) => patch({ tapeColor, tapePattern: note.tapePattern ?? "solid" })}
+          />
+        </>
+      ) : null}
       <div className="section-title">Anchor and sway</div>
       <label className="small">
         Horizontal {Math.round(note.anchor.x * 100)}%

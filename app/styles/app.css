@@ -958,3 +958,97 @@ html[data-motion="reduce"] *::after {
   animation-iteration-count: 1 !important;
   transition-duration: 0.12s !important;
 }
+
+/* ---------- Color dots / sticky note / link (v2) ---------- */
+.swatch-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.swatch-add input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+
+.note-preview {
+  position: sticky;
+  top: -4px;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  padding: 22px 0 14px;
+  margin: 0 -16px;
+  background: var(--background);
+  border-bottom: 1px solid var(--border);
+}
+
+.tape-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.tape-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--background);
+  font-size: 11px;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+.tape-cell i {
+  display: block;
+  width: 100%;
+  height: 24px;
+  border-radius: 2px;
+  opacity: 0.85;
+}
+
+.tape-cell.is-active {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px var(--primary);
+  color: var(--foreground);
+}
+
+.link-shapes {
+  display: flex;
+  gap: 8px;
+}
+
+.link-shapes button {
+  display: inline-flex;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--background);
+  cursor: pointer;
+}
+
+.link-shapes button.is-active {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px var(--primary);
+}
+
+.link-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 110px;
+  border-radius: var(--radius-md);
+  background: var(--muted);
+}

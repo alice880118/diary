@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import type { LinkDisplay, LinkObject, LinkShape } from "../db/types";
 import { linkBox, normalizeUrl } from "../page/links";
-import { LinkView } from "../page/ObjectViews";
+import { LINK_COLORS, LINK_SHAPE_IDS, LinkSticker, LinkView } from "../page/ObjectViews";
+import { ColorDots } from "../shell/ColorDots";
 import { Sheet } from "../shell/Sheet";
 
 export interface LinkDraft {
@@ -25,14 +26,18 @@ export function LinkPanel({
 }) {
   const [url, setUrl] = useState("");
   const [title, setTitle] = useState("");
-  const [display, setDisplay] = useState<LinkDisplay>("card");
+  const [display, setDisplay] = useState<LinkDisplay>("sticker");
+  const [shape, setShape] = useState<LinkShape>("circle");
+  const [color, setColor] = useState(LINK_COLORS[0]);
   const [touched, setTouched] = useState(false);
 
   useEffect(() => {
     if (open) {
       setUrl(initial?.url ?? "");
       setTitle(initial?.title ?? "");
-      setDisplay(initial?.display ?? "card");
+      setDisplay(initial?.display ?? "sticker");
+      setShape(initial?.shape ?? "circle");
+      setColor(initial?.color ?? LINK_COLORS[0]);
       setTouched(false);
     }
   }, [open, initial]);
@@ -52,9 +57,16 @@ export function LinkPanel({
     title,
     display,
     meta: initial?.url === normalized ? initial.meta : null,
-    shape: initial?.shape,
-    color: initial?.color,
+    shape,
+    color,
   };
+  /** v1 looks stay selectable only for links that already use them. */
+  const legacy = initial?.display === "card" || initial?.display === "text" ? initial.display : null;
+  const displays: { id: LinkDisplay; label: string }[] = [
+    { id: "sticker", label: "Sticker" },
+    { id: "tag", label: "Tag" },
+    ...(legacy ? [{ id: legacy, label: legacy === "card" ? "Card" : "Text link" }] : []),
+  ];
   const k = 300 / preview.w;
 
   return (
@@ -73,7 +85,12 @@ export function LinkPanel({
             onClick={() => {
               setTouched(true);
               if (normalized) {
-                onSave({ url: normalized, title: title.trim(), display, shape: initial?.shape, color: initial?.color });
+                onSave({
+                  url: normalized,
+                  title: title.trim(),
+                  display,
+                  ...(display === "sticker" ? { shape, color } : { shape: initial?.shape, color: initial?.color }),
+                });
               }
             }}
           >
@@ -103,24 +120,44 @@ export function LinkPanel({
       <div className="field">
         <span className="field-label">Display</span>
         <div className="tabs">
-          <button type="button" className={`tab${display === "card" ? " is-active" : ""}`} onClick={() => setDisplay("card")}>
-            Card
-          </button>
-          <button type="button" className={`tab${display === "text" ? " is-active" : ""}`} onClick={() => setDisplay("text")}>
-            Text link
-          </button>
+          {displays.map((d) => (
+            <button key={d.id} type="button" className={`tab${display === d.id ? " is-active" : ""}`} onClick={() => setDisplay(d.id)}>
+              {d.label}
+            </button>
+          ))}
         </div>
       </div>
+      {display === "sticker" ? (
+        <>
+          <div className="field">
+            <span className="field-label">Shape</span>
+            <div className="link-shapes">
+              {LINK_SHAPE_IDS.map((id) => (
+                <button key={id} type="button" className={shape === id ? "is-active" : ""} aria-label={id} aria-pressed={shape === id} onClick={() => setShape(id)}>
+                  <LinkSticker shape={id} color={shape === id ? "#1b1b1b" : "#cfcfcf"} arrow={false} style={{ width: 30, height: 30, filter: "none" }} />
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="field">
+            <span className="field-label">Color</span>
+            <ColorDots colors={LINK_COLORS.map((c) => ({ value: c, label: c }))} value={color} onChange={setColor} />
+          </div>
+        </>
+      ) : null}
       <div className="field">
         <span className="field-label">Preview</span>
-        <div style={{ position: "relative", width: 300, height: preview.h * k }}>
-          <div style={{ position: "absolute", width: preview.w, height: preview.h, transform: `scale(${k})`, transformOrigin: "0 0" }}>
-            <LinkView o={preview} />
-          </div>
+        <div className="link-preview">
+          {display === "sticker" ? (
+            <LinkSticker shape={shape} color={color} style={{ width: 80, height: 80 }} />
+          ) : (
+            <div style={{ position: "relative", width: 300, height: preview.h * k }}>
+              <div style={{ position: "absolute", width: preview.w, height: preview.h, transform: `scale(${k})`, transformOrigin: "0 0" }}>
+                <LinkView o={preview} />
+              </div>
+            </div>
+          )}
         </div>
-        <span className="muted small">
-          The URL is saved right away. Site info is fetched only if the site allows it; otherwise a simple card is shown that still opens the link.
-        </span>
       </div>
     </Sheet>
   );

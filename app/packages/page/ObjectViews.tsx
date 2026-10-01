@@ -146,14 +146,17 @@ export const TAPE_PATTERNS: { id: TapePattern; label: string }[] = [
 
 /** Washi-tape fill: a light motif over the tape color (made translucent by the caller). */
 function tapeBackground(o: NoteObject): string {
-  if (!o.tapePattern) return LEGACY_TAPE;
-  const base = o.tapeColor || TAPE_COLORS[0];
+  return o.tapePattern ? tapeFill(o.tapePattern, o.tapeColor) : LEGACY_TAPE;
+}
+
+export function tapeFill(pattern: TapePattern, color?: string): string {
+  const base = color || TAPE_COLORS[0];
   const m = "rgba(255,255,255,0.55)";
   const glyph = (ch: string) =>
     `url("data:image/svg+xml,${encodeURIComponent(
       `<svg xmlns='http://www.w3.org/2000/svg' width='18' height='17'><text x='9' y='13' font-size='11' text-anchor='middle' fill='white' fill-opacity='0.7'>${ch}</text></svg>`,
     )}") 0 0/18px 17px`;
-  switch (o.tapePattern) {
+  switch (pattern) {
     case "stripe":
       return `repeating-linear-gradient(90deg, ${m} 0 5px, transparent 5px 12px), ${base}`;
     case "diagonal":
@@ -338,6 +341,8 @@ export function linkHost(url: string): string {
 
 export const LINK_COLORS = ["#f08a6c", "#f2b84b", "#7cc29a", "#6aa4e8", "#a68be0", "#1b1b1b"];
 
+export const LINK_SHAPE_IDS: LinkShape[] = ["circle", "square", "triangle", "hexagon", "star"];
+
 const LINK_SHAPES: Record<LinkShape, (c: string) => ReactNode> = {
   circle: (c) => <circle cx="32" cy="32" r="28" fill={c} />,
   square: (c) => <rect x="5" y="5" width="54" height="54" rx="10" fill={c} />,
@@ -354,21 +359,48 @@ const LINK_SHAPES: Record<LinkShape, (c: string) => ReactNode> = {
   ),
 };
 
+export function LinkSticker({
+  shape = "circle",
+  color,
+  label,
+  arrow = true,
+  style,
+}: {
+  shape?: LinkShape;
+  color?: string;
+  label?: string;
+  arrow?: boolean;
+  style?: CSSProperties;
+}) {
+  const draw = LINK_SHAPES[shape] ?? LINK_SHAPES.circle;
+  return (
+    <svg
+      viewBox="0 0 64 64"
+      role={label ? "img" : undefined}
+      aria-label={label}
+      aria-hidden={label ? undefined : true}
+      style={{ display: "block", filter: "drop-shadow(0 2px 3px rgba(0,0,0,0.15))", ...style }}
+    >
+      {draw(color || LINK_COLORS[0])}
+      {arrow ? (
+        <g transform={`translate(${shape === "triangle" ? "22 26" : "22 22"}) scale(.85)`} fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M7 17L17 7M9 7h8v8" />
+        </g>
+      ) : null}
+    </svg>
+  );
+}
+
 export function LinkView({ o }: { o: LinkObject }) {
   const title = o.title || o.meta?.siteTitle || linkHost(o.url);
   if (o.display === "sticker") {
-    const shape = LINK_SHAPES[o.shape ?? "circle"] ?? LINK_SHAPES.circle;
     return (
-      <svg
-        viewBox="0 0 64 64"
-        aria-label={title}
-        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", filter: "drop-shadow(0 2px 3px rgba(0,0,0,0.15))" }}
-      >
-        {shape(o.color || LINK_COLORS[0])}
-        <g transform={`translate(${o.shape === "triangle" ? "22 26" : "22 22"}) scale(.85)`} fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M7 17L17 7M9 7h8v8" />
-        </g>
-      </svg>
+      <LinkSticker
+        shape={o.shape}
+        color={o.color}
+        label={title}
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+      />
     );
   }
   if (o.display === "tag") {
@@ -392,7 +424,9 @@ export function LinkView({ o }: { o: LinkObject }) {
       >
         <span aria-hidden>🔗</span>
         <span style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis" }}>{title}</span>
-        <span style={{ color: "#7a7a7a", fontSize: 20, flex: "0 0 auto" }}>{linkHost(o.url)}</span>
+        {title !== linkHost(o.url) ? (
+          <span style={{ color: "#7a7a7a", fontSize: 20, flex: "0 0 auto" }}>{linkHost(o.url)}</span>
+        ) : null}
       </div>
     );
   }

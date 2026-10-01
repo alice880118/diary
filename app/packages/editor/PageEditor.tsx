@@ -9,6 +9,7 @@ import type { LinkObject, NoteObject, Page, PageObject, Sticker, TextObject } fr
 import { DEFAULT_PEN, PenPanel, type PenState } from "../drawing/PenPanel";
 import { DateSheet } from "../notebook/DateSheet";
 import { fetchLinkMeta, linkBox, openExternal } from "../page/links";
+import { TAPE_COLORS } from "../page/ObjectViews";
 import { PageStylePicker } from "../page/PageStylePicker";
 import { Icon, type IconName } from "../shell/Icon";
 import { AppHeader } from "../shell/Layout";
@@ -236,6 +237,8 @@ export function PageEditor({
     textSize: 30,
     strokes: [],
     fix: "tape",
+    tapePattern: "diagonal",
+    tapeColor: TAPE_COLORS[0],
     anchor: { x: 0.5, y: 0.04 },
     sway: 0.6,
   });
