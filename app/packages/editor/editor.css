@@ -103,7 +103,7 @@
 }
 
 .tool-btn:focus-visible {
-  box-shadow: 0 0 0 3px rgb(161 161 170 / 0.5);
+  box-shadow: var(--ring-sel);
 }
 
 .tool-btn:disabled {

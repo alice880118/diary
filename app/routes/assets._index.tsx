@@ -180,7 +180,7 @@ function StickerDetail({
           >
             Duplicate
           </button>
-          <button type="button" className="btn btn-sm btn-danger" onClick={() => setConfirmDel(true)}>
+          <button type="button" className="btn btn-sm btn-danger-text" onClick={() => setConfirmDel(true)}>
             Delete
           </button>
         </div>
@@ -267,7 +267,7 @@ function ImageDetail({ asset, onClose }: { asset: Asset; onClose: () => void }) 
         </button>
         <button
           type="button"
-          className="btn btn-sm btn-danger"
+          className="btn btn-sm btn-danger-text"
           onClick={() =>
             void trashAsset(asset.id)
               .then(() => {

@@ -1,6 +1,7 @@
 import { monthName } from "../db/id";
 import { StickerArt } from "../sticker/StickerArt";
 import { PageSurface } from "../page/PageSurface";
+import { Icon } from "../shell/Icon";
 import type { MonthPreview } from "./monthPreview";
 
 export function MonthVisual({ preview, size }: { preview: MonthPreview; size: number }) {
@@ -65,10 +66,9 @@ export function MonthCard({
         gap: 6,
         padding: 10,
         minHeight: 176,
-        border: "1px solid var(--line)",
+        border: `1px solid ${empty ? "var(--muted)" : "#e6e6e3"}`,
         borderRadius: 14,
         background: empty ? "var(--muted)" : "var(--card)",
-        boxShadow: empty ? "none" : "var(--shadow-sm)",
         textAlign: "left",
         cursor: "pointer",
         overflow: "hidden",
@@ -78,7 +78,7 @@ export function MonthCard({
         <span style={{ fontSize: 20, fontWeight: 600, letterSpacing: "-0.02em" }}>
           {monthName(month, true)}
         </span>
-        <span className="badge">{preview.count} pg</span>
+        <span className="badge" aria-label={`${preview.count} pages`}>{preview.count}</span>
       </div>
       <div
         style={{
@@ -90,7 +90,9 @@ export function MonthCard({
         }}
       >
         {empty ? (
-          <span className="muted small">+ Add page</span>
+          <span className="muted" aria-label="Add page">
+            <Icon name="plus" size={20} />
+          </span>
         ) : (
           <MonthVisual preview={preview} size={84} />
         )}

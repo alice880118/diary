@@ -49,13 +49,13 @@ export default function Trash() {
               >
                 Restore
               </button>
-              <button type="button" className="btn btn-sm btn-danger" onClick={() => setPurge(e)}>
+              <button type="button" className="btn btn-sm btn-danger-text" onClick={() => setPurge(e)}>
                 Delete permanently
               </button>
             </div>
           ))}
           {list.length > 1 ? (
-            <button type="button" className="btn btn-block btn-danger" style={{ marginTop: 12 }} onClick={() => setPurgeAll(true)}>
+            <button type="button" className="btn btn-block btn-danger-text" style={{ marginTop: 12 }} onClick={() => setPurgeAll(true)}>
               Empty trash
             </button>
           ) : null}

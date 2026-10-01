@@ -593,7 +593,7 @@ export function EditorCanvas(props: Props) {
               style={{
                 ...objectFrameStyle(sel),
                 zIndex: 10002,
-                outline: `${2 / s}px ${sel.locked ? "dashed" : "solid"} ${sel.locked ? "#8a7b68" : "#3868b8"}`,
+                outline: `${2 / s}px ${sel.locked ? "dashed" : "solid"} ${sel.locked ? "#8a7b68" : "#1b1b1b"}`,
                 outlineOffset: 4 / s,
               }}
             >
@@ -624,7 +624,7 @@ export function EditorCanvas(props: Props) {
                 top: Math.min(rect.y0, rect.y1),
                 width: Math.abs(rect.x1 - rect.x0),
                 height: Math.abs(rect.y1 - rect.y0),
-                border: `${2 / s}px dashed #3868b8`,
+                border: `${2 / s}px dashed #1b1b1b`,
                 background: "rgba(56,104,184,0.06)",
                 zIndex: 10003,
               }}

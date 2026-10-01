@@ -135,11 +135,11 @@ export default function Settings() {
 
       <div className="section-title">Backup & restore</div>
       <p className="small" style={{ marginTop: 0 }}>Last backup: {last ? formatTimestamp(last) : "Never"}</p>
-      <div className="row" style={{ gap: 10, marginBottom: 8 }}>
-        <button type="button" className="btn btn-primary" style={{ flex: 1 }} disabled={exporting !== null} onClick={() => void doExport()}>
+      <div className="row" style={{ gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
+        <button type="button" className="btn btn-primary" style={{ flex: "1 1 150px" }} disabled={exporting !== null} onClick={() => void doExport()}>
           <Icon name="download" size={18} /> {exporting !== null ? `Exporting ${Math.round(exporting * 100)}%` : "Export backup"}
         </button>
-        <button type="button" className="btn" style={{ flex: 1 }} disabled={reading} onClick={() => void doRead()}>
+        <button type="button" className="btn" style={{ flex: "1 1 150px" }} disabled={reading} onClick={() => void doRead()}>
           <Icon name="refresh" size={18} /> {reading ? "Checking…" : "Restore from backup"}
         </button>
       </div>
