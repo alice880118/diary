@@ -1,11 +1,14 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ART_H, ART_W, type Stroke } from "../db/types";
-import { LiveInk } from "../drawing/liveInk";
-import type { PenState } from "../drawing/PenPanel";
+import type { Box } from "../drawing/geometry";
+import { ShapeDrag, StrokeSession, type InkConfig, type SessionResult, type ShapeStyle } from "../drawing/session";
+import { TransformBox, type BoxOp, type DragPhase } from "../drawing/TransformBox";
 
 export type ArtTool =
   | { kind: "none" }
-  | { kind: "draw"; pen: PenState }
+  | { kind: "ink"; cfg: InkConfig }
+  | { kind: "shape"; style: ShapeStyle }
+  | { kind: "select" }
   | { kind: "moveImage" }
   | { kind: "maskBrush"; canvas: HTMLCanvasElement; size: number; erase: boolean }
   | { kind: "lasso"; purpose: "maskAdd" | "maskSub" | "crop" };
@@ -13,7 +16,9 @@ export type ArtTool =
 type Gesture =
   | { kind: "none" }
   | { kind: "pinch"; d0: number; z0: number; x0: number; y0: number; mx: number; my: number }
-  | { kind: "draw" }
+  | { kind: "ink" }
+  | { kind: "shapeDrag"; x: number; y: number }
+  | { kind: "tap"; x: number; y: number; cx: number; cy: number; moved: boolean }
   | { kind: "move"; x: number; y: number }
   | { kind: "mask"; x: number; y: number; snapshot: ImageData | null }
   | { kind: "lasso"; pts: number[] };
@@ -41,7 +46,11 @@ export function ArtCanvas({
   tool,
   drawOverlay,
   overlayKey,
-  onStroke,
+  onInk,
+  onShape,
+  onTap,
+  selection,
+  onSelectionDrag,
   onImageDrag,
   onDragStart,
   onMaskEnd,
@@ -53,7 +62,13 @@ export function ArtCanvas({
   tool: ArtTool;
   drawOverlay?: (ctx: CanvasRenderingContext2D) => void;
   overlayKey: unknown;
-  onStroke?: (s: Stroke) => void;
+  onInk?: (r: SessionResult) => void;
+  onShape?: (s: Stroke) => void;
+  /** Tap (no drag) in select/shape mode, art coordinates. */
+  onTap?: (x: number, y: number) => void;
+  /** Selected object's box; shows move / resize / rotate handles. */
+  selection?: { box: Box; rotatable: boolean } | null;
+  onSelectionDrag?: (op: BoxOp, phase: DragPhase, p: { x: number; y: number }, start: { x: number; y: number }) => void;
   onImageDrag?: (dx: number, dy: number, done: boolean) => void;
   /** Art-space point where a moveImage drag starts. */
   onDragStart?: (x: number, y: number) => void;
@@ -65,7 +80,8 @@ export function ArtCanvas({
   const liveRef = useRef<HTMLCanvasElement>(null);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<Gesture>({ kind: "none" });
-  const live = useRef<LiveInk | null>(null);
+  const live = useRef<StrokeSession | null>(null);
+  const drag = useRef<ShapeDrag | null>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const [view, setViewState] = useState<View>(HOME);
   const viewRef = useRef<View>(HOME);
@@ -215,9 +231,13 @@ export function ArtCanvas({
 
   const cancelSingle = () => {
     const g = gesture.current;
-    if (g.kind === "draw") {
-      live.current?.clear();
+    if (g.kind === "ink") {
+      live.current?.cancel();
       live.current = null;
+    }
+    if (g.kind === "shapeDrag") {
+      drag.current?.cancel();
+      drag.current = null;
     }
     if (g.kind === "lasso") clearLive();
     if (g.kind === "move") onImageDrag?.(0, 0, true);
@@ -254,14 +274,24 @@ export function ArtCanvas({
     if (pointers.current.size > 2) return;
     const p = toArt(e.clientX, e.clientY);
     switch (tool.kind) {
-      case "draw": {
+      case "ink": {
         const c = liveRef.current;
         if (!c) return;
-        live.current = new LiveInk(c, c.width / ART_W, tool.pen);
-        live.current.add(p.x, p.y);
-        gesture.current = { kind: "draw" };
+        live.current = new StrokeSession(c, c.width / ART_W, tool.cfg, { unitsPerPx: ART_W / (size * viewRef.current.z) });
+        live.current.add(p.x, p.y, e.timeStamp, e.pressure, e.pointerType);
+        gesture.current = { kind: "ink" };
         return;
       }
+      case "shape": {
+        const c = liveRef.current;
+        if (!c) return;
+        drag.current = new ShapeDrag(c, c.width / ART_W, tool.style, p.x, p.y);
+        gesture.current = { kind: "shapeDrag", x: p.x, y: p.y };
+        return;
+      }
+      case "select":
+        gesture.current = { kind: "tap", x: p.x, y: p.y, cx: e.clientX, cy: e.clientY, moved: false };
+        return;
       case "moveImage":
         gesture.current = { kind: "move", x: p.x, y: p.y };
         onDragStart?.(p.x, p.y);
@@ -299,11 +329,20 @@ export function ArtCanvas({
     }
     const evs = typeof e.nativeEvent.getCoalescedEvents === "function" ? e.nativeEvent.getCoalescedEvents() : [];
     const list = evs.length ? evs : [e.nativeEvent];
-    if (g.kind === "draw") {
+    if (g.kind === "ink") {
       for (const ev of list) {
         const p = toArt(ev.clientX, ev.clientY);
-        live.current?.add(p.x, p.y);
+        live.current?.add(p.x, p.y, ev.timeStamp, ev.pressure, ev.pointerType);
       }
+      return;
+    }
+    if (g.kind === "shapeDrag") {
+      const p = toArt(e.clientX, e.clientY);
+      drag.current?.move(p.x, p.y);
+      return;
+    }
+    if (g.kind === "tap") {
+      if (Math.hypot(e.clientX - g.cx, e.clientY - g.cy) > 6) g.moved = true;
       return;
     }
     const p = toArt(e.clientX, e.clientY);
@@ -345,10 +384,29 @@ export function ArtCanvas({
     }
     gesture.current = { kind: "none" };
     const cancelled = e.type === "pointercancel";
-    if (g.kind === "draw") {
-      const s = live.current?.finish() ?? null;
+    if (g.kind === "ink") {
+      const p = toArt(e.clientX, e.clientY);
+      const session = live.current;
       live.current = null;
-      if (s && !cancelled) onStroke?.(s);
+      if (!session) return;
+      if (cancelled) {
+        session.cancel();
+        return;
+      }
+      onInk?.(session.finish(p.x, p.y));
+      return;
+    }
+    if (g.kind === "shapeDrag") {
+      const d = drag.current;
+      drag.current = null;
+      const s = d?.finish() ?? null;
+      if (cancelled) return;
+      if (s) onShape?.(s);
+      else onTap?.(g.x, g.y);
+      return;
+    }
+    if (g.kind === "tap") {
+      if (!g.moved && !cancelled) onTap?.(g.x, g.y);
       return;
     }
     if (g.kind === "move") {
@@ -403,6 +461,16 @@ export function ArtCanvas({
         <canvas ref={baseRef} width={ART_W} height={ART_H} style={common} />
         <canvas ref={overlayRef} width={ART_W} height={ART_H} style={{ ...common, pointerEvents: "none" }} />
         <canvas ref={liveRef} width={ART_W} height={ART_H} style={{ ...common, pointerEvents: "none" }} />
+        {selection && onSelectionDrag ? (
+          <TransformBox
+            box={selection.box}
+            unit={size / ART_W}
+            zoom={view.z}
+            rotatable={selection.rotatable}
+            toSurface={toArt}
+            onDrag={onSelectionDrag}
+          />
+        ) : null}
       </div>
       <button
         type="button"

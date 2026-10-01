@@ -6,17 +6,8 @@ import { formatDate, newId, ymOf } from "../db/id";
 import { describeError } from "../db/idb";
 import { duplicatePage, getSticker, listStickers, putAsset, trashPage } from "../db/repo";
 import type { LinkObject, NoteObject, Page, PageObject, Sticker, TextObject } from "../db/types";
-import type { PenState } from "../drawing/PenPanel";
-import {
-  BrushPopover,
-  ColorButton,
-  PalettePopover,
-  SKETCH_COLORS,
-  SKETCH_TOOLS,
-  ToolButton,
-  useSketchBrushes,
-  type SketchTool,
-} from "../create/SketchTools";
+import { DrawBar, inkConfig, useDrawPrefs, type DrawTool } from "../create/DrawTools";
+import { SKETCH_COLORS } from "../create/SketchTools";
 import { DateSheet } from "../notebook/DateSheet";
 import { fetchLinkMeta, linkBox, openExternal } from "../page/links";
 import { TAPE_COLORS } from "../page/ObjectViews";
@@ -64,24 +55,10 @@ export function PageEditor({
   const doc = useEditorDoc(initial);
   const { page, commit } = doc;
   const [mode, setMode] = useState<EditMode>("layout");
-  const [inkTool, setInkTool] = useState<SketchTool | "select">("pen");
+  const [inkTool, setInkTool] = useState<DrawTool>("brush");
   const [inkColor, setInkColor] = useState(SKETCH_COLORS[0]);
-  const [brushes, setBrush] = useSketchBrushes();
-  const [inkPop, setInkPop] = useState<"brush" | "palette" | null>(null);
-  const inkToolRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-  const inkColorRef = useRef<HTMLButtonElement>(null);
-  const pen: PenState =
-    inkTool === "select"
-      ? { tool: "select", color: inkColor, width: 4, opacity: 1 }
-      : { tool: inkTool, color: inkColor, ...brushes[inkTool] };
-  const inkIgnore = [
-    inkColorRef,
-    ...[...SKETCH_TOOLS.map((t) => t.id), "select"].map((id) => ({
-      get current() {
-        return inkToolRefs.current[id] ?? null;
-      },
-    })),
-  ];
+  const [prefs, setPrefs] = useDrawPrefs();
+  const ink = inkTool === "brush" || inkTool === "eraser" ? inkConfig(prefs, inkTool, inkColor, "#fffdf8") : null;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [panel, setPanel] = useState<Panel>(null);
   const [editing, setEditing] = useState<PageObject | null>(null);
@@ -465,7 +442,8 @@ export function PageEditor({
       <EditorCanvas
         page={page}
         mode={mode}
-        pen={pen}
+        ink={ink}
+        inkSelect={inkTool === "select"}
         selectedId={selectedId}
         onSelect={setSelectedId}
         onCommit={(fn) => commit(fn)}
@@ -512,77 +490,22 @@ export function PageEditor({
         </div>
         {mode === "ink" ? (
           <div className="ink-bar">
-            <div className="studio-tools is-tight">
-              {SKETCH_TOOLS.map((t) => (
-                <ToolButton
-                  key={t.id}
-                  icon={t.icon}
-                  label={t.label}
-                  active={inkTool === t.id}
-                  btnRef={(el) => {
-                    inkToolRefs.current[t.id] = el;
-                  }}
-                  onClick={() => {
-                    if (inkTool === t.id) setInkPop(inkPop === "brush" ? null : "brush");
-                    else {
-                      setInkTool(t.id);
-                      setInkPop(null);
-                    }
-                  }}
-                />
-              ))}
-              <ToolButton
-                icon="select"
-                label="Select strokes"
-                active={inkTool === "select"}
-                btnRef={(el) => {
-                  inkToolRefs.current.select = el;
-                }}
-                onClick={() => {
-                  setInkTool("select");
-                  setInkPop(null);
-                }}
-              />
-            </div>
-            <div className="studio-sep" />
-            <ColorButton
+            <DrawBar
+              tool={inkTool}
+              onTool={setInkTool}
+              tools={["brush", "eraser", "select"]}
+              prefs={prefs}
+              onPrefs={setPrefs}
               color={inkColor}
-              disabled={inkTool === "eraser" || inkTool === "select"}
-              btnRef={inkColorRef}
-              onClick={() => setInkPop(inkPop === "palette" ? null : "palette")}
-            />
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
-              onClick={() => {
-                setInkPop(null);
-                setMode("layout");
-              }}
-            >
-              Done
-            </button>
-            {inkTool !== "select" ? (
-              <BrushPopover
-                open={inkPop === "brush"}
-                onClose={() => setInkPop(null)}
-                tool={inkTool}
-                setting={brushes[inkTool]}
-                color={inkColor}
-                onChange={(b) => setBrush(inkTool, b)}
-                ignore={inkIgnore}
-                bottom="calc(100% + 8px)"
-              />
-            ) : null}
-            <PalettePopover
-              open={inkPop === "palette"}
-              onClose={() => setInkPop(null)}
-              color={inkColor}
-              onPick={(c) => {
-                setInkColor(c);
-                if (inkTool === "eraser" || inkTool === "select") setInkTool("pen");
-              }}
-              ignore={inkIgnore}
-              bottom="calc(100% + 8px)"
+              onColor={setInkColor}
+              selection={null}
+              onSelectionStyle={() => undefined}
+              popBottom="calc(100% + 8px)"
+              right={
+                <button type="button" className="btn btn-primary btn-sm" style={{ marginLeft: 4 }} onClick={() => setMode("layout")}>
+                  Done
+                </button>
+              }
             />
           </div>
         ) : (

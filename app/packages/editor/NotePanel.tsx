@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { NOTE_BASE, type NoteObject, type Stroke } from "../db/types";
-import { LiveInk } from "../drawing/liveInk";
+import { StrokeSession } from "../drawing/session";
 import { StrokeCanvas } from "../drawing/StrokeCanvas";
 import { NOTE_COLORS, NOTE_FIXES, NOTE_SHAPES, NoteView, TAPE_COLORS, TAPE_PATTERNS, tapeFill } from "../page/ObjectViews";
 import { ColorDots } from "../shell/ColorDots";
@@ -16,8 +16,10 @@ function NoteInk({
   onChange: (strokes: Stroke[]) => void;
 }) {
   const liveRef = useRef<HTMLCanvasElement>(null);
-  const live = useRef<LiveInk | null>(null);
+  const live = useRef<StrokeSession | null>(null);
   const [eraser, setEraser] = useState(false);
+  const [penSize, setPenSize] = useState(4);
+  const [eraserSize, setEraserSize] = useState(18);
   const h = (NOTE_BASE * note.h) / note.w;
   const k = 260 / NOTE_BASE;
   const dpr = typeof window === "undefined" ? 1 : Math.min(window.devicePixelRatio || 1, 2);
@@ -42,27 +44,38 @@ function NoteInk({
         onPointerDown={(e) => {
           (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
           if (!liveRef.current) return;
-          live.current = new LiveInk(liveRef.current, k * dpr, {
-            tool: eraser ? "eraser" : "pen",
-            color: "#2f2a25",
-            width: eraser ? 18 : 4,
-            opacity: 1,
-          });
+          live.current = new StrokeSession(
+            liveRef.current,
+            k * dpr,
+            {
+              erase: eraser,
+              brush: "pen",
+              color: "#2f2a25",
+              width: eraser ? eraserSize : penSize,
+              opacity: 1,
+              stabilizer: "medium",
+              smooth: "off",
+              holdToPerfect: false,
+              eraseColor: note.color,
+            },
+            { unitsPerPx: 1 / k },
+          );
           const p = toLocal(e);
-          live.current.add(p.x, p.y);
+          live.current.add(p.x, p.y, e.timeStamp, e.pressure, e.pointerType);
         }}
         onPointerMove={(e) => {
           if (!live.current) return;
           const p = toLocal(e);
-          live.current.add(p.x, p.y);
+          live.current.add(p.x, p.y, e.timeStamp, e.pressure, e.pointerType);
         }}
-        onPointerUp={() => {
-          const s = live.current?.finish();
+        onPointerUp={(e) => {
+          const p = toLocal(e);
+          const r = live.current?.finish(p.x, p.y);
           live.current = null;
-          if (s) onChange([...note.strokes, s]);
+          if (r?.kind === "freehand") onChange([...note.strokes, r.stroke]);
         }}
         onPointerCancel={() => {
-          live.current?.clear();
+          live.current?.cancel();
           live.current = null;
         }}
       >
@@ -90,6 +103,18 @@ function NoteInk({
           Clear
         </button>
       </div>
+      <label className="slider-row">
+        <span className="slider-text">{eraser ? "Eraser size" : "Pen size"}</span>
+        <input
+          type="range"
+          min={1}
+          max={eraser ? 60 : 30}
+          value={eraser ? eraserSize : penSize}
+          aria-label={eraser ? "Eraser size" : "Pen size"}
+          onChange={(e) => (eraser ? setEraserSize : setPenSize)(Number(e.target.value))}
+        />
+        <span className="slider-value">{eraser ? eraserSize : penSize}</span>
+      </label>
     </div>
   );
 }

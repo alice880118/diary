@@ -27,7 +27,6 @@ import {
   type Sticker,
   type StickerVersion,
 } from "../db/types";
-import type { PenState } from "../drawing/PenPanel";
 import type { SaveStatus } from "../editor/useEditorDoc";
 import { MAX_PRINT_LAYERS, newPrintLayer } from "../print/layers";
 import { Dropdown } from "../shell/Dropdown";
@@ -41,21 +40,32 @@ import { finishSticker } from "../sticker/save";
 import { ArtCanvas, type ArtTool } from "./ArtCanvas";
 import { BgRemoveSheet } from "./BgRemoveSheet";
 import { FinishSheet } from "./FinishSheet";
+import { DrawBar, inkConfig, shapeStyle, useDrawPrefs, type DrawTool, type StylePatch } from "./DrawTools";
 import {
-  BrushPopover,
   ColorButton,
   ImageAdjustPopover,
   LabeledTool,
   LayersSheet,
-  PalettePopover,
   SKETCH_COLORS,
-  SKETCH_TOOLS,
   StepPill,
   StudioBar,
   ToolButton,
-  useSketchBrushes,
-  type SketchTool,
 } from "./SketchTools";
+import {
+  boxOfPoints,
+  boxOfShape,
+  distToPolyline,
+  hitShape,
+  mapPoints,
+  resizeBox,
+  rotateTowards,
+  shapeFallbackPoints,
+  shapeFromBox,
+  type Box,
+} from "../drawing/geometry";
+import type { SessionResult } from "../drawing/session";
+import type { BoxOp, DragPhase } from "../drawing/TransformBox";
+import type { Stroke } from "../db/types";
 import { StickerPreview } from "./StickerPreview";
 import {
   CutPopover,
@@ -131,9 +141,12 @@ export function CreateEditor({
     initial.layers[initial.layers.length - 1]?.id ?? null,
   );
   const [activePrint, setActivePrint] = useState<string | null>(initial.print.layers[0]?.id ?? null);
-  const [sketchTool, setSketchTool] = useState<SketchTool>("pen");
+  const [drawTool, setDrawTool] = useState<DrawTool>("brush");
   const [color, setColor] = useState(SKETCH_COLORS[0]);
-  const [brushes, setBrush] = useSketchBrushes();
+  const [prefs, setPrefs] = useDrawPrefs();
+  const [selectedObj, setSelectedObj] = useState<string | null>(null);
+  const objDrag = useRef<{ orig: Stroke; box: Box } | null>(null);
+  const dragBox = useRef<Box | null>(null);
   const [shine, setShine] = useState(false);
   const [pop, setPop] = useState<
     "brush" | "palette" | "image" | "texture" | "maskSize" | "inkColor" | "material" | "cut" | null
@@ -146,6 +159,7 @@ export function CreateEditor({
   const viewRef = useRef<HTMLButtonElement>(null);
   const texAdjustRef = useRef<HTMLButtonElement>(null);
   const inkColorRef = useRef<HTMLButtonElement>(null);
+  const maskSizeRef = useRef<HTMLButtonElement>(null);
   const stickerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   /** Sticker canvas: the cut editor while the Cut popover edits a box or lasso, else the preview. */
   const preview: "static" | "shine" | "crop" =
@@ -457,13 +471,129 @@ export function CreateEditor({
     navigate(returnTo ?? "/create");
   };
 
+  /* ---------- drawing objects ---------- */
+
+  const drawLayer = layer?.kind === "draw" ? layer : null;
+  const selStroke = (drawLayer && selectedObj ? drawLayer.strokes.find((x) => x.id === selectedObj) : null) ?? null;
+  const selBox: Box | null = selStroke
+    ? selStroke.shape
+      ? boxOfShape(selStroke.shape, selStroke.width)
+      : objDrag.current && objDrag.current.orig.id === selStroke.id
+        ? dragBox.current
+        : boxOfPoints(selStroke.points, selStroke.width / 2)
+    : null;
+
+  /** Applies fn to the active draw layer's strokes. */
+  const editStrokes = (fn: (s: Stroke[]) => Stroke[], mode: "discrete" | "continuous" | "end" = "discrete") => {
+    if (!drawLayer) return;
+    const id = drawLayer.id;
+    change((a) => ({ ...a, layers: a.layers.map((l) => (l.id === id && l.kind === "draw" ? { ...l, strokes: fn(l.strokes) } : l)) }), mode);
+  };
+  const addStrokes = (list: Stroke[]) => editStrokes((s) => [...s, ...list]);
+  const replaceStroke = (next: Stroke, mode: "discrete" | "continuous" | "end" = "discrete") =>
+    editStrokes((s) => s.map((x) => (x.id === next.id ? next : x)), mode);
+
+  /** Two history steps for corrections, so Undo first returns to the raw freehand. */
+  const onInk = (r: SessionResult) => {
+    if (!r || !drawLayer) return;
+    const id = drawLayer.id;
+    if (r.kind === "freehand") {
+      addStrokes([r.stroke]);
+      if (r.smoothed) {
+        const sm = r.smoothed;
+        change((a) => ({ ...a, layers: a.layers.map((l) => (l.id === id && l.kind === "draw" ? { ...l, strokes: l.strokes.map((x) => (x.id === sm.id ? sm : x)) } : l)) }));
+      }
+      return;
+    }
+    addStrokes([r.raw]);
+    const raw = r.raw;
+    const shape = r.shape;
+    change((a) => ({ ...a, layers: a.layers.map((l) => (l.id === id && l.kind === "draw" ? { ...l, strokes: l.strokes.map((x) => (x.id === raw.id ? shape : x)) } : l)) }));
+  };
+
+  const selectAt = (x: number, y: number) => {
+    if (!drawLayer) return;
+    const tol = 10 * (ART_W / Math.max(1, canvasSize));
+    for (let i = drawLayer.strokes.length - 1; i >= 0; i--) {
+      const st = drawLayer.strokes[i];
+      if (st.mode === "erase") continue;
+      const hit = st.shape
+        ? hitShape(st.shape, st.fill?.kind === "solid", st.outline === false ? 0 : st.width, x, y, tol)
+        : distToPolyline(st.points, x, y) <= st.width / 2 + tol;
+      if (hit) {
+        setSelectedObj(st.id);
+        return;
+      }
+    }
+    setSelectedObj(null);
+  };
+
+  const dragSelection = (op: BoxOp, phase: DragPhase, p: { x: number; y: number }, start: { x: number; y: number }) => {
+    if (!selStroke || !selBox) return;
+    if (phase === "start") {
+      objDrag.current = { orig: selStroke, box: selBox };
+      dragBox.current = selBox;
+      return;
+    }
+    const d = objDrag.current;
+    if (!d) return;
+    const b0 = d.box;
+    let nb: Box;
+    if (op === "move") nb = { ...b0, cx: b0.cx + p.x - start.x, cy: b0.cy + p.y - start.y };
+    else if (op === "rotate") nb = { ...b0, rot: rotateTowards(b0, p.x, p.y) };
+    else nb = resizeBox(b0, op, p.x, p.y);
+    dragBox.current = nb;
+    const o = d.orig;
+    let next: Stroke;
+    if (o.shape) {
+      const g = shapeFromBox(o.shape, nb);
+      next = { ...o, shape: g, points: shapeFallbackPoints(g) };
+    } else {
+      next = { ...o, points: mapPoints(o.points, b0, nb), ...(op !== "move" && op !== "rotate" ? { width: o.width } : null) };
+    }
+    replaceStroke(next, phase === "end" ? "end" : "continuous");
+    if (phase === "end") {
+      objDrag.current = null;
+      dragBox.current = null;
+    }
+  };
+
+  const styleSelection = (patch: StylePatch, continuous?: boolean) => {
+    if (!selStroke) return;
+    const next: Stroke = { ...selStroke, ...patch };
+    if ("texture" in patch && patch.texture === undefined) delete next.texture;
+    replaceStroke(next, continuous === true ? "continuous" : continuous === false ? "end" : "discrete");
+  };
+
+  const duplicateSelection = () => {
+    if (!selStroke) return;
+    const off = 24;
+    const copy: Stroke = selStroke.shape
+      ? (() => {
+          const g = { ...selStroke.shape!, cx: selStroke.shape!.cx + off, cy: selStroke.shape!.cy + off };
+          return { ...selStroke, id: newId("st"), shape: g, points: shapeFallbackPoints(g) };
+        })()
+      : { ...selStroke, id: newId("st"), points: selStroke.points.map((v) => v + off) };
+    addStrokes([copy]);
+    setSelectedObj(copy.id);
+  };
+
+  const deleteSelection = () => {
+    if (!selStroke) return;
+    const id = selStroke.id;
+    editStrokes((s) => s.filter((x) => x.id !== id));
+    setSelectedObj(null);
+  };
+
   /* ---------- canvas tool & overlay ---------- */
 
-  const pen: PenState = { tool: sketchTool, color, ...brushes[sketchTool] };
 
   let tool: ArtTool = { kind: "none" };
   if (step === "draw" && layer) {
-    tool = layer.kind === "draw" ? { kind: "draw", pen } : { kind: "moveImage" };
+    if (layer.kind !== "draw") tool = { kind: "moveImage" };
+    else if (drawTool === "shape") tool = { kind: "shape", style: shapeStyle(prefs, color) };
+    else if (drawTool === "select") tool = { kind: "select" };
+    else tool = { kind: "ink", cfg: inkConfig(prefs, drawTool, color) };
   } else if (step === "print" && pLayer && rt) {
     const c = rt.printMasks.get(pLayer.id);
     if (c && (maskTool === "brush" || maskTool === "erase")) {
@@ -558,23 +688,7 @@ export function CreateEditor({
     setPop(null);
     setStep(id);
   };
-  const pickTool = (t: SketchTool) => {
-    if (t === sketchTool && pop !== "palette") {
-      setPop(pop === "brush" ? null : "brush");
-    } else {
-      setSketchTool(t);
-      setPop(null);
-    }
-  };
-  const popIgnore = [
-    colorRef,
-    adjustRef,
-    ...SKETCH_TOOLS.map((t) => ({
-      get current() {
-        return toolRefs.current[t.id] ?? null;
-      },
-    })),
-  ];
+  const popIgnore = [adjustRef];
 
   return (
     <div className="screen">
@@ -637,14 +751,14 @@ export function CreateEditor({
               tool={tool}
               drawOverlay={drawOverlay}
               overlayKey={overlayKey}
-              onStroke={(s) => {
-                if (layer?.kind !== "draw") return;
-                const id = layer.id;
-                change((a) => ({
-                  ...a,
-                  layers: a.layers.map((l) => (l.id === id && l.kind === "draw" ? { ...l, strokes: [...l.strokes, s] } : l)),
-                }));
+              onInk={onInk}
+              onShape={(st) => {
+                addStrokes([st]);
+                setSelectedObj(st.id);
               }}
+              onTap={selectAt}
+              selection={step === "draw" && selBox ? { box: selBox, rotatable: true } : null}
+              onSelectionDrag={dragSelection}
               onDragStart={(x, y) => {
                 if (step !== "sticker") return;
                 const r = art.sticker.crop.rect;
@@ -694,6 +808,16 @@ export function CreateEditor({
               <Icon name={layer.kind === "image" ? "image2" : "layers"} size={15} />
               {layer.name}
             </button>
+          ) : null}
+          {step === "draw" && selStroke ? (
+            <div className="float-group float-tc" role="toolbar" aria-label="Selection">
+              <button type="button" className="icon-btn" aria-label="Duplicate" onClick={duplicateSelection}>
+                <Icon name="copy" />
+              </button>
+              <button type="button" className="icon-btn" aria-label="Delete" style={{ color: "var(--destructive)" }} onClick={deleteSelection}>
+                <Icon name="trash" />
+              </button>
+            </div>
           ) : null}
           {step === "paper" ? (
             <button type="button" className="canvas-chip" onClick={() => setPaperOpen(true)}>
@@ -765,53 +889,32 @@ export function CreateEditor({
                   <LabeledTool icon="sliders" label="Adjust" active={pop === "image"} btnRef={adjustRef} onClick={() => setPop(pop === "image" ? null : "image")} />
                 </div>
               ) : (
-                <div className="studio-tools">
-                  {SKETCH_TOOLS.map((t) => (
-                    <ToolButton
-                      key={t.id}
-                      icon={t.icon}
-                      label={t.label}
-                      active={sketchTool === t.id}
-                      btnRef={(el) => {
-                        toolRefs.current[t.id] = el;
-                      }}
-                      onClick={() => pickTool(t.id)}
-                    />
-                  ))}
-                </div>
+                <DrawBar
+                  tool={drawTool}
+                  onTool={(t) => {
+                    setDrawTool(t);
+                    if (t === "brush" || t === "eraser") setSelectedObj(null);
+                  }}
+                  tools={["brush", "eraser", "shape", "select"]}
+                  prefs={prefs}
+                  onPrefs={setPrefs}
+                  color={color}
+                  onColor={setColor}
+                  selection={selStroke}
+                  onSelectionStyle={styleSelection}
+                  popBottom={88}
+                  right={<ToolButton icon="layers" label="Layers" count={art.layers.length} onClick={() => { setPop(null); setLayersOpen(true); }} />}
+                />
               )}
-              <div className="studio-sep" />
-              <div className="studio-right">
-                {imgLayer ? null : (
-                  <ColorButton
-                    color={color}
-                    disabled={sketchTool === "eraser"}
-                    btnRef={colorRef}
-                    onClick={() => setPop(pop === "palette" ? null : "palette")}
-                  />
-                )}
-                <ToolButton icon="layers" label="Layers" count={art.layers.length} onClick={() => { setPop(null); setLayersOpen(true); }} />
-              </div>
+              {imgLayer ? (
+                <>
+                  <div className="studio-sep" />
+                  <div className="studio-right">
+                    <ToolButton icon="layers" label="Layers" count={art.layers.length} onClick={() => { setPop(null); setLayersOpen(true); }} />
+                  </div>
+                </>
+              ) : null}
             </StudioBar>
-            <BrushPopover
-              open={pop === "brush" && !imgLayer}
-              onClose={() => setPop(null)}
-              tool={sketchTool}
-              setting={brushes[sketchTool]}
-              color={color}
-              onChange={(b) => setBrush(sketchTool, b)}
-              ignore={popIgnore}
-            />
-            <PalettePopover
-              open={pop === "palette" && !imgLayer}
-              onClose={() => setPop(null)}
-              color={color}
-              onPick={(c) => {
-                setColor(c);
-                if (sketchTool === "eraser") setSketchTool("pen");
-              }}
-              ignore={popIgnore}
-            />
             {imgLayer ? (
               <ImageAdjustPopover
                 open={pop === "image"}
@@ -875,7 +978,20 @@ export function CreateEditor({
                 ))}
               </div>
               <div className="studio-sep" />
-              <div className="studio-right" style={{ gap: 2 }}>
+              <div className="studio-right" style={{ gap: 0 }}>
+                <button
+                  ref={maskSizeRef}
+                  type="button"
+                  className="st-tool"
+                  aria-label={`Brush size ${brushSize}`}
+                  title="Brush size"
+                  disabled={!pLayer || !art.print.enabled}
+                  onClick={() => setPop(pop === "maskSize" ? null : "maskSize")}
+                >
+                  <span className="size-glyph">
+                    <span style={{ width: Math.max(3, Math.min(20, brushSize / 7)), height: Math.max(3, Math.min(20, brushSize / 7)) }} />
+                  </span>
+                </button>
                 <ColorButton
                   color={pLayer?.color ?? "#c8c8c8"}
                   disabled={!pLayer}
@@ -891,7 +1007,7 @@ export function CreateEditor({
               onClose={() => setPop(null)}
               size={brushSize}
               onSize={setBrushSize}
-              ignore={MASK_TOOLS.map((t) => ({ get current() { return toolRefs.current[`m-${t.id}`] ?? null; } }))}
+              ignore={[maskSizeRef, ...MASK_TOOLS.map((t) => ({ get current() { return toolRefs.current[`m-${t.id}`] ?? null; } }))]}
             />
             <InkColorPopover
               open={pop === "inkColor" && pLayer !== null}

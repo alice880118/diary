@@ -1172,3 +1172,49 @@ html[data-motion="reduce"] *::after {
 .sheet-backdrop.is-studio {
   background: var(--dim-studio);
 }
+
+/* ---------- Drawing object selection box ---------- */
+.tbox {
+  position: absolute;
+  z-index: 20;
+  outline: 1.5px solid var(--primary);
+  transform-origin: center;
+  pointer-events: none;
+}
+
+.tbox-body {
+  position: absolute;
+  inset: 0;
+  cursor: move;
+  touch-action: none;
+  pointer-events: auto;
+}
+
+.tbox-hit {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  touch-action: none;
+  pointer-events: auto;
+}
+
+.tbox-handle {
+  display: block;
+  border-radius: 50%;
+  border-style: solid;
+  border-color: var(--primary);
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
+}
+
+.tbox-handle.is-rotate {
+  background: var(--primary);
+  border-color: #fff;
+}
+
+.tbox-stem {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--primary);
+}

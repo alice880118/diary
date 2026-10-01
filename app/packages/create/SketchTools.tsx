@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode, type Ref, type RefObject } from "react";
 import { renderSource } from "../art/render";
 import type { ArtRuntime } from "../art/runtime";
-import type { ArtLayer, Artwork, BrushKind, ImageLayer } from "../db/types";
+import type { ArtLayer, Artwork, ImageLayer } from "../db/types";
 import { ColorDots } from "../shell/ColorDots";
 import { Dropdown } from "../shell/Dropdown";
 import { Icon, type IconName } from "../shell/Icon";
@@ -72,6 +72,7 @@ export function StepPill({
 
 export function ToolButton({
   icon,
+  iconNode,
   label,
   active,
   count,
@@ -80,6 +81,8 @@ export function ToolButton({
   disabled,
 }: {
   icon: IconName;
+  /** Replaces the icon (e.g. the current shape). */
+  iconNode?: ReactNode;
   label: string;
   active?: boolean;
   count?: number;
@@ -98,7 +101,7 @@ export function ToolButton({
       disabled={disabled}
       onClick={onClick}
     >
-      <Icon name={icon} />
+      {iconNode ?? <Icon name={icon} />}
       {count ? <span className="tool-count">{count}</span> : null}
     </button>
   );
@@ -133,27 +136,6 @@ export function StudioBar({ children }: { children: ReactNode }) {
 /* Sketch tools                                                        */
 /* ------------------------------------------------------------------ */
 
-export type SketchTool = BrushKind | "eraser";
-
-export interface BrushSetting {
-  width: number;
-  opacity: number;
-}
-
-export const SKETCH_TOOLS: { id: SketchTool; label: string; icon: IconName }[] = [
-  { id: "pen", label: "Pen", icon: "pen2" },
-  { id: "marker", label: "Marker", icon: "marker" },
-  { id: "pencil", label: "Pencil", icon: "pencil" },
-  { id: "eraser", label: "Eraser", icon: "eraser2" },
-];
-
-export const DEFAULT_BRUSHES: Record<SketchTool, BrushSetting> = {
-  pen: { width: 5, opacity: 1 },
-  marker: { width: 16, opacity: 0.8 },
-  pencil: { width: 3, opacity: 0.9 },
-  eraser: { width: 24, opacity: 1 },
-};
-
 export const SKETCH_COLORS = [
   "#1b1b1b",
   "#5b4232",
@@ -166,113 +148,6 @@ export const SKETCH_COLORS = [
   "#ffffff",
   "#2c2724",
 ];
-
-const BRUSH_KEY = "diary.sketchBrushes";
-
-/** Per-tool size/opacity, remembered on this device only (a convenience, not data). */
-export function useSketchBrushes() {
-  const [brushes, setBrushes] = useState<Record<SketchTool, BrushSetting>>(DEFAULT_BRUSHES);
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(BRUSH_KEY);
-      if (raw) setBrushes({ ...DEFAULT_BRUSHES, ...(JSON.parse(raw) as Partial<Record<SketchTool, BrushSetting>>) });
-    } catch {
-      // Storage unavailable; defaults are fine.
-    }
-  }, []);
-  const update = (tool: SketchTool, b: BrushSetting) =>
-    setBrushes((cur) => {
-      const next = { ...cur, [tool]: b };
-      try {
-        localStorage.setItem(BRUSH_KEY, JSON.stringify(next));
-      } catch {
-        // Ignore.
-      }
-      return next;
-    });
-  return [brushes, update] as const;
-}
-
-function SliderRow({
-  icon,
-  label,
-  min,
-  max,
-  value,
-  display,
-  onChange,
-}: {
-  icon: IconName;
-  label: string;
-  min: number;
-  max: number;
-  value: number;
-  display: string;
-  onChange: (v: number) => void;
-}) {
-  return (
-    <label className="slider-row">
-      <span className="slider-icon" title={label}>
-        <Icon name={icon} size={18} />
-      </span>
-      <input type="range" min={min} max={max} value={value} aria-label={label} onChange={(e) => onChange(Number(e.target.value))} />
-      <span className="slider-value">{display}</span>
-    </label>
-  );
-}
-
-export function BrushPopover({
-  open,
-  onClose,
-  tool,
-  setting,
-  color,
-  onChange,
-  ignore,
-  bottom,
-}: {
-  open: boolean;
-  bottom?: number | string;
-  onClose: () => void;
-  tool: SketchTool;
-  setting: BrushSetting;
-  color: string;
-  onChange: (b: BrushSetting) => void;
-  ignore: RefObject<HTMLElement | null>[];
-}) {
-  const label = SKETCH_TOOLS.find((t) => t.id === tool)?.label ?? "";
-  const erase = tool === "eraser";
-  const w = Math.max(1, Math.min(setting.width * 0.5, 18));
-  return (
-    <Popover open={open} onClose={onClose} title={label} ignore={ignore} bottom={bottom}>
-      <div className="brush-preview">
-        <svg width="220" height="24" viewBox="0 0 220 24" aria-hidden>
-          <path
-            d="M6 14c30-10 50 8 80 0s50-10 80 0 40 4 48-2"
-            fill="none"
-            stroke={erase ? "#c8c8c8" : color}
-            strokeOpacity={erase ? 1 : setting.opacity}
-            strokeWidth={w}
-            strokeLinecap="round"
-            strokeDasharray={erase ? "2 6" : undefined}
-          />
-        </svg>
-      </div>
-      <SliderRow icon="size" label="Size" min={1} max={80} value={setting.width} display={String(setting.width)} onChange={(width) => onChange({ ...setting, width })} />
-      {erase ? null : (
-        <SliderRow
-          icon="opacity"
-          label="Opacity"
-          min={10}
-          max={100}
-          value={Math.round(setting.opacity * 100)}
-          display={`${Math.round(setting.opacity * 100)}%`}
-          onChange={(v) => onChange({ ...setting, opacity: v / 100 })}
-        />
-      )}
-    </Popover>
-  );
-}
 
 export function PalettePopover({
   open,

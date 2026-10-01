@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { PAGE_H, PAGE_W, type Page, type PageObject, type Stroke } from "../db/types";
-import { LiveInk } from "../drawing/liveInk";
-import type { PenState } from "../drawing/PenPanel";
+import { StrokeSession, type InkConfig, type SessionResult } from "../drawing/session";
 import { StrokeCanvas } from "../drawing/StrokeCanvas";
 import { strokeBounds, translateStroke } from "../drawing/strokes";
 import { ObjectBody, objectFrameStyle } from "../page/ObjectViews";
@@ -16,7 +15,9 @@ export type EditMode = "layout" | "ink";
 interface Props {
   page: Page;
   mode: EditMode;
-  pen: PenState;
+  /** Ink settings in handwriting mode; null with `inkSelect` for the stroke selector. */
+  ink: InkConfig | null;
+  inkSelect: boolean;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onCommit: (fn: (p: Page) => Page) => void;
@@ -62,7 +63,7 @@ interface PeelAnim {
 const MAX_BACKING = 1400;
 
 export function EditorCanvas(props: Props) {
-  const { page, mode, pen, selectedId, onSelect, onCommit, onTransient, onEditObject, reduceMotion, focusId, bottomInset } = props;
+  const { page, mode, ink: inkCfg, inkSelect, selectedId, onSelect, onCommit, onTransient, onEditObject, reduceMotion, focusId, bottomInset } = props;
   const hostRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const liveRef = useRef<HTMLCanvasElement>(null);
@@ -70,7 +71,7 @@ export function EditorCanvas(props: Props) {
   const [view, setView] = useState({ z: 1, x: 0, y: 0 });
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<Gesture>({ kind: "none" });
-  const live = useRef<LiveInk | null>(null);
+  const live = useRef<StrokeSession | null>(null);
   type DragState = { id: string; obj: PageObject; ox: number; oy: number } | null;
   const [drag, setDragState] = useState<DragState>(null);
   const dragRef = useRef<DragState>(null);
@@ -254,7 +255,7 @@ export function EditorCanvas(props: Props) {
   const cancelSingle = () => {
     const g = gesture.current;
     if (g.kind === "ink") {
-      live.current?.clear();
+      live.current?.cancel();
       live.current = null;
     }
     if (g.kind === "obj" || g.kind === "handle") {
@@ -266,6 +267,15 @@ export function EditorCanvas(props: Props) {
   };
 
   /* ---------- pointer handling ---------- */
+
+  /** Corrections take two history steps, so Undo first returns to the raw freehand. */
+  const commitInk = (r: SessionResult) => {
+    if (!r) return;
+    const first = r.kind === "freehand" ? r.stroke : r.raw;
+    onCommit((p) => ({ ...p, ink: [...p.ink, first] }));
+    const second = r.kind === "freehand" ? r.smoothed : r.shape;
+    if (second) onCommit((p) => ({ ...p, ink: p.ink.map((st) => (st.id === first.id ? second : st)) }));
+  };
 
   const onPointerDown = (e: React.PointerEvent) => {
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -289,7 +299,7 @@ export function EditorCanvas(props: Props) {
     const target = e.target as HTMLElement;
 
     if (mode === "ink") {
-      if (pen.tool === "select") {
+      if (inkSelect || !inkCfg) {
         const b = selectedStrokeBounds();
         if (b && pt.x >= b.minX && pt.x <= b.maxX && pt.y >= b.minY && pt.y <= b.maxY) {
           gesture.current = { kind: "moveSel", sx: pt.x, sy: pt.y, dx: 0, dy: 0 };
@@ -302,8 +312,8 @@ export function EditorCanvas(props: Props) {
       }
       const c = liveRef.current;
       if (!c) return;
-      live.current = new LiveInk(c, backing, pen);
-      live.current.add(pt.x, pt.y);
+      live.current = new StrokeSession(c, backing, inkCfg, { unitsPerPx: 1 / s });
+      live.current.add(pt.x, pt.y, e.timeStamp, e.pressure, e.pointerType);
       gesture.current = { kind: "ink" };
       return;
     }
@@ -371,7 +381,7 @@ export function EditorCanvas(props: Props) {
       const list = events.length ? events : [e.nativeEvent];
       for (const ev of list) {
         const pt = toPage(ev.clientX, ev.clientY);
-        live.current?.add(pt.x, pt.y);
+        live.current?.add(pt.x, pt.y, ev.timeStamp, ev.pressure, ev.pointerType);
       }
       return;
     }
@@ -434,11 +444,15 @@ export function EditorCanvas(props: Props) {
     const cancelled = e.type === "pointercancel";
 
     if (g.kind === "ink") {
-      const stroke = live.current?.finish() ?? null;
+      const session = live.current;
       live.current = null;
-      if (stroke && !cancelled) {
-        onCommit((p) => ({ ...p, ink: [...p.ink, stroke] }));
+      if (!session) return;
+      if (cancelled) {
+        session.cancel();
+        return;
       }
+      const end = toPage(e.clientX, e.clientY);
+      commitInk(session.finish(end.x, end.y));
       return;
     }
     if (g.kind === "rect") {

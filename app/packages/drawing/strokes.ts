@@ -1,17 +1,7 @@
 import type { BrushKind, Stroke } from "../db/types";
+import { renderBrush, strokeSeed } from "./brush";
+import { isOpenShape, shapeOutline, type Polyline } from "./geometry";
 
-export interface BrushSettings {
-  brush: BrushKind;
-  color: string;
-  width: number;
-  opacity: number;
-}
-
-export const BRUSHES: { id: BrushKind; label: string }[] = [
-  { id: "pen", label: "Pen" },
-  { id: "marker", label: "Marker" },
-  { id: "pencil", label: "Pencil" },
-];
 
 export const INK_COLORS = [
   "#2f2a25",
@@ -25,90 +15,67 @@ export const INK_COLORS = [
   "#ffffff",
 ];
 
-function mulberry(seed: number) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function hashString(s: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
-
-function tracePath(ctx: CanvasRenderingContext2D, pts: number[], jitter = 0, rnd?: () => number) {
-  const n = pts.length / 2;
-  const j = (v: number) => (rnd && jitter ? v + (rnd() - 0.5) * jitter : v);
-  ctx.beginPath();
-  if (n === 1) {
-    ctx.moveTo(j(pts[0]), j(pts[1]));
-    ctx.lineTo(j(pts[0]) + 0.01, j(pts[1]));
-    return;
-  }
-  ctx.moveTo(j(pts[0]), j(pts[1]));
-  for (let i = 1; i < n - 1; i++) {
-    const x = pts[i * 2];
-    const y = pts[i * 2 + 1];
-    const nx = pts[(i + 1) * 2];
-    const ny = pts[(i + 1) * 2 + 1];
-    ctx.quadraticCurveTo(j(x), j(y), j((x + nx) / 2), j((y + ny) / 2));
-  }
-  ctx.lineTo(j(pts[(n - 1) * 2]), j(pts[(n - 1) * 2 + 1]));
-}
-
-/** Draws one stroke; ctx must already be transformed to surface coordinates. */
+/** Draws one stroke or shape; ctx must already be transformed to surface coordinates. */
 export function drawStroke(ctx: CanvasRenderingContext2D, s: Stroke) {
-  if (s.points.length < 2) {
+  const shape = s.shape;
+  if (!shape && s.points.length < 2) {
     return;
   }
-  ctx.save();
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
   if (s.mode === "erase") {
+    ctx.save();
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
     ctx.globalCompositeOperation = "destination-out";
     ctx.strokeStyle = "#000";
     ctx.globalAlpha = 1;
     ctx.lineWidth = s.width;
+    ctx.beginPath();
     tracePath(ctx, s.points);
     ctx.stroke();
     ctx.restore();
     return;
   }
-  ctx.strokeStyle = s.color;
-  switch (s.brush) {
-    case "marker":
-      ctx.globalAlpha = s.opacity * 0.85;
-      ctx.lineCap = "square";
-      ctx.lineWidth = s.width * 1.6;
-      tracePath(ctx, s.points);
-      ctx.stroke();
-      break;
-    case "pencil": {
-      const rnd = mulberry(hashString(s.id));
-      ctx.lineWidth = Math.max(0.6, s.width * 0.45);
-      for (let pass = 0; pass < 3; pass++) {
-        ctx.globalAlpha = s.opacity * (pass === 0 ? 0.7 : 0.35);
-        tracePath(ctx, s.points, s.width * 0.6, rnd);
-        ctx.stroke();
-      }
-      break;
+  const lines: Polyline[] = shape ? shapeOutline(shape) : [{ pts: s.points, closed: false }];
+  if (shape && s.fill?.kind === "solid" && !isOpenShape(shape.type)) {
+    ctx.save();
+    ctx.globalAlpha *= s.opacity;
+    ctx.fillStyle = s.fill.color;
+    ctx.beginPath();
+    for (const l of lines) {
+      if (!l.closed) continue;
+      ctx.moveTo(l.pts[0], l.pts[1]);
+      for (let i = 2; i < l.pts.length; i += 2) ctx.lineTo(l.pts[i], l.pts[i + 1]);
+      ctx.closePath();
     }
-    default:
-      ctx.globalAlpha = s.opacity;
-      ctx.lineWidth = s.width;
-      tracePath(ctx, s.points);
-      ctx.stroke();
+    ctx.fill();
+    ctx.restore();
   }
-  ctx.restore();
+  if (shape && s.outline === false) return;
+  renderBrush(ctx, lines, {
+    brush: s.brush,
+    color: s.color,
+    width: s.width,
+    opacity: s.opacity,
+    texture: s.texture,
+    seed: strokeSeed(s),
+    pressure: shape ? undefined : s.pressure,
+  });
+}
+
+function tracePath(ctx: CanvasRenderingContext2D, pts: number[]) {
+  const n = pts.length / 2;
+  if (n === 1) {
+    ctx.moveTo(pts[0], pts[1]);
+    ctx.lineTo(pts[0] + 0.01, pts[1]);
+    return;
+  }
+  ctx.moveTo(pts[0], pts[1]);
+  for (let i = 1; i < n - 1; i++) {
+    const x = pts[i * 2];
+    const y = pts[i * 2 + 1];
+    ctx.quadraticCurveTo(x, y, (x + pts[(i + 1) * 2]) / 2, (y + pts[(i + 1) * 2 + 1]) / 2);
+  }
+  ctx.lineTo(pts[(n - 1) * 2], pts[(n - 1) * 2 + 1]);
 }
 
 export function drawStrokes(ctx: CanvasRenderingContext2D, strokes: Stroke[]) {
