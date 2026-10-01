@@ -374,10 +374,8 @@ export function ArtCanvas({
         height: size,
         overflow: "hidden",
         touchAction: "none",
-        borderRadius: "var(--radius-lg)",
-        border: "1px solid var(--border)",
-        boxShadow: "var(--shadow-sm)",
-        background: "var(--muted)",
+        background: "#fff",
+        boxShadow: "0 1px 6px rgb(0 0 0 / 0.08)",
       }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -402,17 +400,15 @@ export function ArtCanvas({
         <canvas ref={overlayRef} width={ART_W} height={ART_H} style={{ ...common, pointerEvents: "none" }} />
         <canvas ref={liveRef} width={ART_W} height={ART_H} style={{ ...common, pointerEvents: "none" }} />
       </div>
-      {view.z > 1.01 ? (
-        <button
-          type="button"
-          className="btn btn-sm"
-          style={{ position: "absolute", right: 8, top: 8 }}
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={snapHome}
-        >
-          {view.z.toFixed(1)}x · Reset
-        </button>
-      ) : null}
+      <button
+        type="button"
+        className="zoom-chip"
+        aria-label={view.z > 1.01 ? "Reset zoom" : "Zoom"}
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={snapHome}
+      >
+        {Math.round(view.z * 100)}%
+      </button>
     </div>
   );
 }

@@ -30,6 +30,11 @@ export function Popover({
       const t = e.target as Node;
       if (ref.current?.contains(t)) return;
       if (ignore?.some((r) => r.current?.contains(t))) return;
+      // A tap on the canvas only dismisses; it must not also draw.
+      if (t instanceof HTMLCanvasElement) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
       onClose();
     };
     const onKey = (e: KeyboardEvent) => {

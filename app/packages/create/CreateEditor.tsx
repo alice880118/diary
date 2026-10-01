@@ -27,11 +27,10 @@ import {
   type Sticker,
   type StickerVersion,
 } from "../db/types";
-import { DEFAULT_PEN, PenPanel, type PenState } from "../drawing/PenPanel";
+import type { PenState } from "../drawing/PenPanel";
 import type { SaveStatus } from "../editor/useEditorDoc";
 import { MAX_PRINT_LAYERS, newPrintLayer } from "../print/layers";
 import { Icon } from "../shell/Icon";
-import { AppHeader } from "../shell/Layout";
 import { Sheet } from "../shell/Sheet";
 import { useToast } from "../shell/toast";
 import { useElementSize } from "../shell/useSize";
@@ -42,6 +41,21 @@ import { ArtCanvas, type ArtTool } from "./ArtCanvas";
 import { BgRemoveSheet } from "./BgRemoveSheet";
 import { FinishSheet } from "./FinishSheet";
 import { PrintPanel, type MaskTool, type PrintView } from "./PrintPanel";
+import {
+  BrushPopover,
+  ColorButton,
+  ImageAdjustPopover,
+  LabeledTool,
+  LayersSheet,
+  PalettePopover,
+  SKETCH_COLORS,
+  SKETCH_TOOLS,
+  StepPill,
+  StudioBar,
+  ToolButton,
+  useSketchBrushes,
+  type SketchTool,
+} from "./SketchTools";
 import { StickerPanel } from "./StickerPanel";
 import { StickerPreview } from "./StickerPreview";
 import { TexturePanel } from "./TexturePanel";
@@ -50,10 +64,10 @@ import "./create.css";
 type Step = "draw" | "paper" | "print" | "sticker";
 
 const STEPS: { id: Step; label: string }[] = [
-  { id: "draw", label: "1 Sketch" },
-  { id: "paper", label: "2 Paper" },
-  { id: "print", label: "3 Print" },
-  { id: "sticker", label: "4 Sticker" },
+  { id: "draw", label: "Sketch" },
+  { id: "paper", label: "Paper" },
+  { id: "print", label: "Print" },
+  { id: "sticker", label: "Sticker" },
 ];
 
 const STATUS: Record<SaveStatus, string> = {
@@ -62,6 +76,9 @@ const STATUS: Record<SaveStatus, string> = {
   saving: "Saving…",
   error: "Save failed",
 };
+
+/** Bottom toolbar height + gap, where L2 popovers sit. */
+const POP_BOTTOM = 88;
 
 function assetSignature(art: Artwork) {
   return [
@@ -98,7 +115,14 @@ export function CreateEditor({
     initial.layers[initial.layers.length - 1]?.id ?? null,
   );
   const [activePrint, setActivePrint] = useState<string | null>(initial.print.layers[0]?.id ?? null);
-  const [pen, setPen] = useState<PenState>(DEFAULT_PEN);
+  const [sketchTool, setSketchTool] = useState<SketchTool>("pen");
+  const [color, setColor] = useState(SKETCH_COLORS[0]);
+  const [brushes, setBrush] = useSketchBrushes();
+  const [pop, setPop] = useState<"brush" | "palette" | "image" | null>(null);
+  const [layersOpen, setLayersOpen] = useState(false);
+  const toolRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const colorRef = useRef<HTMLButtonElement>(null);
+  const adjustRef = useRef<HTMLButtonElement>(null);
   const [maskTool, setMaskTool] = useState<MaskTool>("brush");
   const [brushSize, setBrushSize] = useState(48);
   const [printView, setPrintView] = useState<PrintView>("composite");
@@ -111,11 +135,10 @@ export function CreateEditor({
   const [finishing, setFinishing] = useState(false);
   const [result, setResult] = useState<{ sticker: Sticker; version: StickerVersion } | null>(null);
   const [placeOpen, setPlaceOpen] = useState(false);
-  const [renaming, setRenaming] = useState<string | null>(null);
   const session = useRef(false);
   const imgDragOrigin = useRef<{ x: number; y: number } | null>(null);
-  const bodyRef = useRef<HTMLDivElement>(null);
-  const body = useElementSize(bodyRef);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const stage = useElementSize(stageRef);
   const stickers = useLive(listStickers, []);
 
   /* ---------- runtime (decoded assets) ---------- */
@@ -276,15 +299,38 @@ export function CreateEditor({
     }
   };
 
-  const moveLayer = (id: string, dir: -1 | 1) =>
+  const reorderLayer = (id: string, to: number) =>
     change((a) => {
       const i = a.layers.findIndex((l) => l.id === id);
-      const j = i + dir;
-      if (i < 0 || j < 0 || j >= a.layers.length) return a;
+      if (i < 0 || to < 0 || to >= a.layers.length || i === to) return a;
       const layers = [...a.layers];
-      [layers[i], layers[j]] = [layers[j], layers[i]];
+      const [l] = layers.splice(i, 1);
+      layers.splice(to, 0, l);
       return { ...a, layers };
     });
+
+  const duplicateLayer = (id: string) => {
+    const src = art.layers.find((x) => x.id === id);
+    if (!src) return;
+    const copy = { ...structuredClone(src), id: newId("ly"), name: `${src.name} copy` } as ArtLayer;
+    if (copy.kind === "draw") copy.strokes = copy.strokes.map((st) => ({ ...st, id: newId("st") }));
+    change((a) => {
+      const i = a.layers.findIndex((x) => x.id === id);
+      const layers = [...a.layers];
+      layers.splice(i + 1, 0, copy);
+      return { ...a, layers };
+    });
+    setActiveLayer(copy.id);
+  };
+
+  const deleteLayer = (id: string) => {
+    if (art.layers.length <= 1) return;
+    change((a) => ({ ...a, layers: a.layers.filter((x) => x.id !== id) }));
+    if (activeLayer === id) {
+      const rest = art.layers.filter((x) => x.id !== id);
+      setActiveLayer(rest[rest.length - 1]?.id ?? null);
+    }
+  };
 
   const commitMask = async (p: PrintLayer) => {
     const c = rtRef.current?.printMasks.get(p.id);
@@ -380,6 +426,8 @@ export function CreateEditor({
 
   /* ---------- canvas tool & overlay ---------- */
 
+  const pen: PenState = { tool: sketchTool, color, ...brushes[sketchTool] };
+
   let tool: ArtTool = { kind: "none" };
   if (step === "draw" && layer) {
     tool = layer.kind === "draw" ? { kind: "draw", pen } : { kind: "moveImage" };
@@ -443,43 +491,74 @@ export function CreateEditor({
 
   /* ---------- layout ---------- */
 
-  const canvasSize = Math.max(200, Math.min(body.width - 24, Math.round(body.height * 0.5)));
+  const canvasSize = Math.max(200, Math.min(stage.width - 24, stage.height - 24));
   const imgLayer = layer?.kind === "image" ? (layer as ImageLayer) : null;
   const categories = Array.from(new Set((stickers.data ?? []).map((s) => s.category).filter(Boolean)));
+  const stepIdx = STEPS.findIndex((s) => s.id === step);
+  const edited: Record<Step, boolean> = {
+    draw: art.layers.some((l) => l.kind === "image" || l.strokes.length > 0),
+    paper: art.texture.id !== "wc-fine" || art.texture.strength !== 0.6 || (art.texture.scale ?? 1) !== 1,
+    print: art.print.layers.length > 0,
+    sticker: art.stickerId !== null,
+  };
+  const goStep = (id: Step) => {
+    setPop(null);
+    setStep(id);
+  };
+  const pickTool = (t: SketchTool) => {
+    if (t === sketchTool && pop !== "palette") {
+      setPop(pop === "brush" ? null : "brush");
+    } else {
+      setSketchTool(t);
+      setPop(null);
+    }
+  };
+  const popIgnore = [
+    colorRef,
+    adjustRef,
+    ...SKETCH_TOOLS.map((t) => ({
+      get current() {
+        return toolRefs.current[t.id] ?? null;
+      },
+    })),
+  ];
 
   return (
     <div className="screen">
-      <AppHeader
-        left={
+      <header className="app-header is-studio">
+        <div className="app-header-side">
           <button type="button" className="icon-btn" aria-label="Back" onClick={() => void leave()}>
             <Icon name="back" />
           </button>
-        }
-        title={art.name}
-        subtitle={`${STATUS[doc.status]}${art.stickerId ? " · Has sticker version" : " · Draft"}`}
-        right={
-          <button type="button" className="btn btn-primary btn-sm" style={{ marginRight: 6 }} onClick={() => (step === "sticker" ? setFinishOpen(true) : setStep(STEPS[STEPS.findIndex((s) => s.id === step) + 1].id))}>
+        </div>
+        <div className="app-header-title">
+          <div className="app-header-main studio-title">
+            <span className="studio-name">{art.name}</span>
+            <span className={`save-dot is-${doc.status}`} role="status" aria-label={STATUS[doc.status]} title={STATUS[doc.status]} />
+          </div>
+          <StepPill steps={STEPS.map((s) => ({ ...s, edited: edited[s.id] }))} current={step} onPick={(id) => goStep(id as Step)} />
+        </div>
+        <div className="app-header-side app-header-right">
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            style={{ marginRight: 6 }}
+            onClick={() => (step === "sticker" ? setFinishOpen(true) : goStep(STEPS[stepIdx + 1].id))}
+          >
             {step === "sticker" ? "Finish" : "Next"}
           </button>
-        }
-      />
-      <div ref={bodyRef} className="create-body">
-        <div className="tabs" style={{ margin: "8px 12px 6px" }}>
-          {STEPS.map((s) => (
-            <button key={s.id} type="button" className={`tab${step === s.id ? " is-active" : ""}`} onClick={() => setStep(s.id)}>
-              {s.label}
-            </button>
-          ))}
         </div>
+      </header>
+      <div className="create-body">
         {doc.status === "error" ? (
-          <div className="save-error-bar" role="alert" style={{ margin: "0 12px 6px" }}>
+          <div className="save-error-bar" role="alert" style={{ margin: "8px 12px 0" }}>
             <span>Save failed: {doc.error}</span>
             <button type="button" className="btn btn-sm" onClick={() => void doc.retry()}>
               Retry
             </button>
           </div>
         ) : null}
-        <div className="create-stage">
+        <div ref={stageRef} className={`studio-stage${step === "draw" ? " is-full" : ""}`}>
           {step === "sticker" && preview !== "crop" ? (
             built ? (
               <StickerPreview
@@ -531,9 +610,7 @@ export function CreateEditor({
               }}
             />
           )}
-        </div>
-        <div className="row-between" style={{ padding: "0 8px" }}>
-          <div className="row" style={{ gap: 0 }}>
+          <div className="float-group float-tl">
             <button type="button" className="icon-btn" aria-label="Undo" disabled={!doc.canUndo} onClick={doc.undo}>
               <Icon name="undo" />
             </button>
@@ -541,141 +618,84 @@ export function CreateEditor({
               <Icon name="redo" />
             </button>
           </div>
-          <span className="muted small">
-            {step === "draw"
-              ? imgLayer
-                ? "Drag to move the image"
-                : "Draw on the canvas · Pinch to zoom"
-              : step === "print"
-                ? pLayer
-                  ? "Set this ink layer's area on the canvas"
-                  : "Add an ink layer to start printing"
-                : step === "sticker"
-                  ? "Adjust material and crop"
-                  : "Choose a paper texture"}
-          </span>
+          {step === "draw" && layer ? (
+            <button type="button" className="canvas-chip" onClick={() => setLayersOpen(true)}>
+              <Icon name={layer.kind === "image" ? "image2" : "layers"} size={15} />
+              {layer.name}
+            </button>
+          ) : null}
         </div>
 
-        <div className="create-panel">
-          {step === "draw" ? (
-            <>
-              <div className="section-title" style={{ marginTop: 4 }}>Layers (top first)</div>
-              {[...art.layers].reverse().map((l) => {
-                const idx = art.layers.findIndex((x) => x.id === l.id);
-                const active = l.id === activeLayer;
-                return (
-                  <div key={l.id} className="row layer-row" style={{ borderColor: active ? "var(--accent)" : undefined }}>
-                    <div style={{ flex: 1, minWidth: 0 }} onClick={() => setActiveLayer(l.id)}>
-                      {renaming === l.id ? (
-                        <input
-                          className="input"
-                          autoFocus
-                          defaultValue={l.name}
-                          style={{ minHeight: 34, padding: "4px 8px" }}
-                          onBlur={(e) => {
-                            setLayer(l.id, { name: e.target.value.trim() || l.name });
-                            setRenaming(null);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                          }}
-                        />
-                      ) : (
-                        <div style={{ fontWeight: active ? 600 : 400 }}>
-                          {active ? "▶ " : ""}
-                          {l.name}
-                          <span className="muted small"> · {l.kind === "draw" ? "Sketch" : "Image"}</span>
-                        </div>
-                      )}
-                    </div>
-                    <button type="button" className="icon-btn" style={{ minWidth: 36 }} aria-label={l.visible ? "Hide" : "Show"} onClick={() => setLayer(l.id, { visible: !l.visible })}>
-                      <Icon name={l.visible ? "eye" : "eyeOff"} size={18} />
-                    </button>
-                    <button type="button" className="icon-btn" style={{ minWidth: 36 }} aria-label="Move up" disabled={idx === art.layers.length - 1} onClick={() => moveLayer(l.id, 1)}>
-                      <Icon name="up" size={18} />
-                    </button>
-                    <button type="button" className="icon-btn" style={{ minWidth: 36 }} aria-label="Move down" disabled={idx === 0} onClick={() => moveLayer(l.id, -1)}>
-                      <Icon name="down" size={18} />
-                    </button>
-                  </div>
-                );
-              })}
-              <div className="row-wrap" style={{ margin: "6px 0 10px" }}>
-                <button type="button" className="btn btn-sm" onClick={addDrawLayer}>
-                  <Icon name="plus" size={16} /> Sketch layer
-                </button>
-                <button type="button" className="btn btn-sm" onClick={() => void addImageLayer()}>
-                  <Icon name="image" size={16} /> Import image
-                </button>
-                {layer ? (
-                  <>
-                    <button type="button" className="btn btn-sm" onClick={() => setRenaming(layer.id)}>
-                      Rename
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      onClick={() => {
-                        const copy = { ...structuredClone(layer), id: newId("ly"), name: `${layer.name} copy` } as ArtLayer;
-                        change((a) => {
-                          const i = a.layers.findIndex((x) => x.id === layer.id);
-                          const layers = [...a.layers];
-                          layers.splice(i + 1, 0, copy);
-                          return { ...a, layers };
-                        });
-                        setActiveLayer(copy.id);
+        {step === "draw" ? (
+          <>
+            <StudioBar>
+              {imgLayer ? (
+                <div className="studio-tools">
+                  <LabeledTool icon="wand" label={imgLayer.maskAssetId ? "Background" : "Remove BG"} onClick={() => setBgLayer(imgLayer.id)} />
+                  <LabeledTool icon="sliders" label="Adjust" active={pop === "image"} btnRef={adjustRef} onClick={() => setPop(pop === "image" ? null : "image")} />
+                </div>
+              ) : (
+                <div className="studio-tools">
+                  {SKETCH_TOOLS.map((t) => (
+                    <ToolButton
+                      key={t.id}
+                      icon={t.icon}
+                      label={t.label}
+                      active={sketchTool === t.id}
+                      btnRef={(el) => {
+                        toolRefs.current[t.id] = el;
                       }}
-                    >
-                      Duplicate
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      disabled={art.layers.length <= 1}
-                      onClick={() => {
-                        change((a) => ({ ...a, layers: a.layers.filter((x) => x.id !== layer.id) }));
-                        setActiveLayer(art.layers.find((x) => x.id !== layer.id)?.id ?? null);
-                      }}
-                    >
-                      Delete
-                    </button>
-                  </>
-                ) : null}
-              </div>
-              {layer?.kind === "draw" ? (
-                <PenPanel pen={pen} onChange={setPen} allowSelect={false} maxWidth={80} />
-              ) : imgLayer ? (
-                <div className="card">
-                  <button type="button" className="btn btn-primary btn-sm" onClick={() => setBgLayer(imgLayer.id)}>
-                    {imgLayer.maskAssetId ? "Adjust background removal" : "Remove background"}
-                  </button>
-                  <label className="small" style={{ display: "block", marginTop: 8 }}>
-                    Scale {Math.round(imgLayer.scale * 100)}%
-                    <input type="range" min={5} max={300} value={Math.round(imgLayer.scale * 100)} onChange={(e) => setLayer(imgLayer.id, { scale: Number(e.target.value) / 100 }, "continuous")} onPointerUp={() => setLayer(imgLayer.id, {}, "end")} />
-                  </label>
-                  <label className="small" style={{ display: "block" }}>
-                    Rotate {Math.round(imgLayer.rot)}°
-                    <input type="range" min={-180} max={180} value={Math.round(imgLayer.rot)} onChange={(e) => setLayer(imgLayer.id, { rot: Number(e.target.value) }, "continuous")} onPointerUp={() => setLayer(imgLayer.id, {}, "end")} />
-                  </label>
-                  <div className="small" style={{ marginTop: 4 }}>Crop (top / bottom / left / right)</div>
-                  {(["t", "b", "l", "r"] as const).map((k) => (
-                    <input
-                      key={k}
-                      type="range"
-                      min={0}
-                      max={45}
-                      value={Math.round(imgLayer.crop[k] * 100)}
-                      aria-label={`Crop ${k}`}
-                      onChange={(e) => setLayer(imgLayer.id, { crop: { ...imgLayer.crop, [k]: Number(e.target.value) / 100 } }, "continuous")}
-                      onPointerUp={() => setLayer(imgLayer.id, {}, "end")}
+                      onClick={() => pickTool(t.id)}
                     />
                   ))}
-                  <p className="muted small">The original image is kept; background removal and crop can always be undone.</p>
                 </div>
-              ) : null}
-            </>
-          ) : null}
+              )}
+              <div className="studio-sep" />
+              <div className="studio-right">
+                {imgLayer ? null : (
+                  <ColorButton
+                    color={color}
+                    disabled={sketchTool === "eraser"}
+                    btnRef={colorRef}
+                    onClick={() => setPop(pop === "palette" ? null : "palette")}
+                  />
+                )}
+                <ToolButton icon="layers" label="Layers" count={art.layers.length} onClick={() => { setPop(null); setLayersOpen(true); }} />
+              </div>
+            </StudioBar>
+            <BrushPopover
+              open={pop === "brush" && !imgLayer}
+              onClose={() => setPop(null)}
+              tool={sketchTool}
+              setting={brushes[sketchTool]}
+              color={color}
+              onChange={(b) => setBrush(sketchTool, b)}
+              ignore={popIgnore}
+            />
+            <PalettePopover
+              open={pop === "palette" && !imgLayer}
+              onClose={() => setPop(null)}
+              color={color}
+              onPick={(c) => {
+                setColor(c);
+                if (sketchTool === "eraser") setSketchTool("pen");
+              }}
+              ignore={popIgnore}
+            />
+            {imgLayer ? (
+              <ImageAdjustPopover
+                open={pop === "image"}
+                onClose={() => setPop(null)}
+                layer={imgLayer}
+                onChange={(patch) => setLayer(imgLayer.id, patch, "continuous")}
+                onEnd={() => setLayer(imgLayer.id, {}, "end")}
+                ignore={popIgnore}
+              />
+            ) : null}
+          </>
+        ) : null}
 
+        <div className="create-panel" hidden={step === "draw"}>
           {step === "paper" ? (
             <TexturePanel
               value={art.texture.id}
@@ -743,6 +763,27 @@ export function CreateEditor({
           ) : null}
         </div>
       </div>
+
+      <LayersSheet
+        open={layersOpen}
+        onClose={() => setLayersOpen(false)}
+        art={art}
+        rt={rt}
+        activeId={activeLayer}
+        onSelect={setActiveLayer}
+        onPatch={(id, patch) => setLayer(id, patch)}
+        onDuplicate={duplicateLayer}
+        onDelete={deleteLayer}
+        onReorder={reorderLayer}
+        onAddSketch={() => {
+          addDrawLayer();
+          setLayersOpen(false);
+        }}
+        onImport={() => {
+          setLayersOpen(false);
+          void addImageLayer();
+        }}
+      />
 
       <BgRemoveSheet
         open={bgLayer !== null}

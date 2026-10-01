@@ -1168,3 +1168,7 @@ html[data-motion="reduce"] *::after {
   color: var(--muted-foreground);
   display: inline-flex;
 }
+
+.sheet-backdrop.is-studio {
+  background: var(--dim-studio);
+}
