@@ -97,9 +97,13 @@ export function BoardView({
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<Gesture>({ kind: "none" });
   const session = useRef<StrokeSession | null>(null);
-  const [drag, setDrag] = useState<BoardItem | null>(null);
+  const [drag, setDragState] = useState<BoardItem | null>(null);
   const dragRef = useRef<BoardItem | null>(null);
-  dragRef.current = drag;
+  // The ref is updated synchronously so a release right after a move still commits it.
+  const setDrag = (d: BoardItem | null) => {
+    dragRef.current = d;
+    setDragState(d);
+  };
 
   const dpr = typeof window === "undefined" ? 1 : Math.min(window.devicePixelRatio || 1, 2);
   const backing = (width * dpr) / BOARD_W;
@@ -149,7 +153,11 @@ export function BoardView({
       if (!target.closest("[data-actions]")) onSelect(null);
       return;
     }
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {
+      // Capture is best effort (synthetic or already-released pointers).
+    }
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
     if (mode === "doodle") {
