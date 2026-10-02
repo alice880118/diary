@@ -1,5 +1,5 @@
 /* Offline cache: network-first for navigations, cache-first for built assets. */
-const CACHE = "diary-v3";
+const CACHE = "diary-v4";
 const SHELL = [
   "/",
   "/manifest.webmanifest",
