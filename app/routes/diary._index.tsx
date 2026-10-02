@@ -1,5 +1,8 @@
 import { useNavigate } from "@remix-run/react";
 import { useState } from "react";
+import { formatDateShort } from "~/packages/db/id";
+import { StickerArt } from "~/packages/sticker/StickerArt";
+import { Tape } from "~/packages/shell/Tape";
 import { useLive } from "~/packages/db/events";
 import { describeError } from "~/packages/db/idb";
 import {
@@ -12,7 +15,7 @@ import {
   updateNotebook,
   updateSettings,
 } from "~/packages/db/repo";
-import type { Notebook } from "~/packages/db/types";
+import type { Notebook, Page, StickerObject, TextObject } from "~/packages/db/types";
 import { NotebookCover } from "~/packages/notebook/NotebookCover";
 import { NotebookForm, type NotebookFormValue } from "~/packages/notebook/NotebookForm";
 import { Onboarding } from "~/packages/notebook/Onboarding";
@@ -48,6 +51,7 @@ export default function Bookshelf() {
   const [formOpen, setFormOpen] = useState<"new" | Notebook | null>(null);
   const [menuFor, setMenuFor] = useState<Notebook | null>(null);
   const [deleting, setDeleting] = useState<Notebook | null>(null);
+  const [formValid, setFormValid] = useState(false);
 
   const create = async (v: NotebookFormValue) => {
     setBusy(true);
@@ -97,12 +101,27 @@ export default function Bookshelf() {
     );
   }
 
+  const totalPages = [...pages.entries()].reduce((n, [id, list]) => (notebooks.some((nb) => nb.id === id) ? n + list.length : n), 0);
+  const nbIds = new Set(notebooks.map((nb) => nb.id));
+  let last: Page | null = null;
+  for (const [id, list] of pages) {
+    if (!nbIds.has(id)) continue;
+    for (const p of list) if (!last || p.updatedAt > last.updatedAt) last = p;
+  }
+  const lastNb = last ? notebooks.find((nb) => nb.id === last!.notebookId) : null;
+
   return (
     <Screen
       nav
+      bodyClassName="journal-bg"
       header={
         <AppHeader
           title={t("Notebooks")}
+          subtitle={
+            notebooks.length
+              ? `${tn(notebooks.length, "{n} notebook", "{n} notebooks")} · ${tn(totalPages, "{n} page", "{n} pages")}`
+              : undefined
+          }
           right={
             <>
               <button
@@ -119,81 +138,72 @@ export default function Bookshelf() {
         />
       }
     >
-      {notebooks.length === 0 ? (
-        <EmptyState
-          title={t("No notebooks yet")}
-          hint={t("Create a notebook to start journaling.")}
-          action={
-            <button type="button" className="btn btn-primary" onClick={() => setFormOpen("new")}>
-              <Icon name="plus" size={18} /> {t("New notebook")}
-            </button>
-          }
-        />
-      ) : (
-        <div
-          className="pad"
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(2, 1fr)",
-            gap: "22px 14px",
-          }}
-        >
+      <div className="pad">
+        {last && lastNb ? <ContinueCard page={last} notebook={lastNb} /> : null}
+        <div className="nb-grid">
           {notebooks.map((nb) => (
-            <div key={nb.id} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+            <div key={nb.id} className="nb-cell">
               <button
                 type="button"
+                className="nb-open"
                 onClick={() => navigate(`/diary/${nb.id}`)}
-                style={{ border: 0, background: "none", padding: 0, cursor: "pointer" }}
                 aria-label={t("Open {name}", { name: nb.name })}
               >
-                <NotebookCover cover={nb.cover} name={nb.name} width={132} />
+                <NotebookCover cover={nb.cover} name={nb.name} width="fluid" />
               </button>
-              <div className="row" style={{ width: 150, marginTop: 6 }}>
+              <div className="nb-meta">
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      fontWeight: 600,
-                      fontSize: 14,
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {nb.name}
-                  </div>
-                  <div className="muted small">
+                  <div className="ell nb-name">{nb.name}</div>
+                  <div className="ell muted nb-sub">
                     {tn(pages.get(nb.id)?.length ?? 0, "{n} page", "{n} pages")} · {relTime(nb.updatedAt)}
                   </div>
                 </div>
                 <button
                   type="button"
-                  className="icon-btn"
+                  className="icon-btn nb-more"
                   aria-label={t("Actions for {name}", { name: nb.name })}
                   onClick={() => setMenuFor(nb)}
                 >
-                  <Icon name="more" />
+                  <Icon name="more" size={18} />
                 </button>
               </div>
             </div>
           ))}
+          <div className="nb-cell">
+            <button type="button" className="nb-new" onClick={() => setFormOpen("new")}>
+              <Icon name="plus" />
+              {t("New notebook")}
+            </button>
+          </div>
         </div>
-      )}
+      </div>
 
       <Sheet
         open={formOpen !== null}
         title={formOpen === "new" ? t("New notebook") : t("Notebook settings")}
         onClose={() => setFormOpen(null)}
         tall
+        footer={
+          <>
+            <button type="button" className="btn" onClick={() => setFormOpen(null)}>
+              {t("Cancel")}
+            </button>
+            <button type="submit" form="nb-form" className="btn btn-primary" disabled={busy || !formValid}>
+              {busy ? t("Working…") : formOpen === "new" ? t("Create") : t("Save")}
+            </button>
+          </>
+        }
       >
         {formOpen === "new" ? (
-          <NotebookForm submitText={t("Create")} busy={busy} onSubmit={create} />
+          <NotebookForm id="nb-form" busy={busy} onSubmit={create} onValidChange={setFormValid} />
         ) : formOpen ? (
           <NotebookForm
             key={formOpen.id}
+            id="nb-form"
             initial={formOpen}
-            submitText={t("Save")}
             busy={busy}
             onSubmit={(v) => edit(formOpen, v)}
+            onValidChange={setFormValid}
           />
         ) : null}
       </Sheet>
@@ -230,9 +240,11 @@ export default function Bookshelf() {
         confirmText={t("Move to trash")}
         message={
           <>
-            "{deleting?.name}" and its {deleting ? (pages.get(deleting.id)?.length ?? 0) : 0}{" "}
-            {(deleting ? (pages.get(deleting.id)?.length ?? 0) : 0) === 1 ? "page" : "pages"} will be
-            moved to the trash. You can restore them from Settings → Trash.
+            {tn(
+              deleting ? (pages.get(deleting.id)?.length ?? 0) : 0,
+              "\"{name}\" and its {n} page will be moved to the trash. You can restore them from Settings → Trash.",
+              "\"{name}\" and its {n} pages will be moved to the trash. You can restore them from Settings → Trash.",
+            ).replace("{name}", deleting?.name ?? "")}
             <br />
             {t("Finished stickers in your library won't be deleted.")}
           </>
@@ -250,5 +262,47 @@ export default function Bookshelf() {
         }}
       />
     </Screen>
+  );
+}
+
+/** Back to the most recently edited page. */
+function ContinueCard({ page, notebook }: { page: Page; notebook: Notebook }) {
+  const navigate = useNavigate();
+  const sticker = page.objects.find((o): o is StickerObject => o.type === "sticker");
+  const text = page.objects
+    .filter((o): o is TextObject => o.type === "text")
+    .sort((a, b) => a.y - b.y)
+    .map((o) => o.text.split("\n").find((l) => l.trim()))
+    .find(Boolean);
+  const box = 34;
+  const k = sticker ? Math.min(box / sticker.w, box / sticker.h) : 1;
+  return (
+    <button type="button" className="card continue-card" onClick={() => navigate(`/page/${page.id}/edit`)}>
+      <Tape pattern="dots" color="#9cc7ef" style={{ top: -8, right: 22, width: 56, transform: "rotate(6deg)" }} />
+      <div className="continue-thumb">
+        {sticker ? (
+          <div style={{ width: sticker.w * k, height: sticker.h * k, transform: "rotate(-6deg)" }}>
+            <StickerArt
+              artAssetId={sticker.snap.artAssetId}
+              shapeAssetId={sticker.snap.shapeAssetId}
+              material={sticker.snap.material}
+              w={sticker.w * k}
+              h={sticker.h * k}
+              angle={sticker.snap.holoAngle}
+            />
+          </div>
+        ) : (
+          <Icon name="pen" size={18} />
+        )}
+      </div>
+      <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+        <div className="lab">{t("Continue")}</div>
+        <div className="ell" style={{ fontSize: 14, fontWeight: 600, marginTop: 2 }}>
+          {notebook.name} · {formatDateShort(page.date)}
+        </div>
+        {text ? <div className="ell muted" style={{ fontSize: 12 }}>{text}</div> : null}
+      </div>
+      <Icon name="chevronRight" size={18} />
+    </button>
   );
 }

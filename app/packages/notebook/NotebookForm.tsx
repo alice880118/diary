@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { PageStyle } from "../db/types";
 import { PAGE_STYLES } from "../page/PageBackground";
 import { PageStylePicker } from "../page/PageStylePicker";
-import { Icon } from "../shell/Icon";
-import { COVERS } from "./covers";
+import { Tape } from "../shell/Tape";
+import { COVERS, coverOf } from "./covers";
 import { NotebookCover } from "./NotebookCover";
 import { t } from "../i18n";
 
@@ -15,16 +15,25 @@ export interface NotebookFormValue {
 
 export const NAME_MAX = 30;
 
+/**
+ * Name, cover and default page style. With `id` the submit button is left
+ * out so a sheet footer can submit it (`<button form={id}>`); `onValidChange`
+ * reports whether it can be submitted.
+ */
 export function NotebookForm({
   initial,
   submitText,
   busy,
   onSubmit,
+  id,
+  onValidChange,
 }: {
   initial?: NotebookFormValue;
-  submitText: string;
+  submitText?: string;
   busy?: boolean;
   onSubmit: (v: NotebookFormValue) => void;
+  id?: string;
+  onValidChange?: (valid: boolean) => void;
 }) {
   const [name, setName] = useState(initial?.name ?? "");
   const [cover, setCover] = useState(initial?.cover ?? COVERS[0].id);
@@ -38,8 +47,13 @@ export function NotebookForm({
       ? t("Name must be {NAME_MAX} characters or fewer", { NAME_MAX })
       : null;
 
+  useEffect(() => {
+    onValidChange?.(!error);
+  }, [error, onValidChange]);
+
   return (
     <form
+      id={id}
       onSubmit={(e) => {
         e.preventDefault();
         setTouched(true);
@@ -48,73 +62,43 @@ export function NotebookForm({
         }
       }}
     >
-      <div style={{ display: "flex", justifyContent: "center", margin: "8px 0 18px" }}>
-        <NotebookCover cover={cover} name={trimmed || t("My diary")} width={120} />
+      <div className="nb-preview journal-bg">
+        <Tape pattern="grid" color="#f3b48b" style={{ top: 10, left: 18, width: 60, transform: "rotate(-8deg)" }} />
+        <NotebookCover cover={cover} name={trimmed || t("My diary")} width={104} />
       </div>
       <label className="field">
         <span className="field-label">
           <span>{t("Name")}</span>
-          <span>
+          <span className="field-aside">
             {trimmed.length}/{NAME_MAX}
           </span>
         </span>
         <input
-          className={`input${touched && error ? " is-error" : ""}`}
+          className={`input${touched && error && (trimmed || !id) ? " is-error" : ""}`}
           value={name}
           placeholder={t("e.g. Everyday life, Travel journal")}
           onChange={(e) => setName(e.target.value)}
           onBlur={() => setTouched(true)}
         />
-        {touched && error ? <span className="field-error">{error}</span> : null}
+        {touched && error && (trimmed || !id) ? <span className="field-error">{error}</span> : null}
       </label>
       <div className="field">
-        <span className="field-label">{t("Cover")}</span>
-        <div className="hscroll" style={{ paddingBottom: 8 }}>
-          {/* 1fr columns in a max-content grid all take the widest option's width. */}
-          <div style={{ display: "grid", gridAutoFlow: "column", gridAutoColumns: "1fr", gap: 8, width: "max-content" }}>
+        <span className="field-label">
+          {t("Cover")}
+          <span className="field-aside">{t(coverOf(cover).label)}</span>
+        </span>
+        <div className="hscroll-fade">
+          <div className="hscroll" style={{ gap: 10, padding: "4px 36px 4px 3px" }}>
             {COVERS.map((c) => (
               <button
                 key={c.id}
                 type="button"
+                className={`opt${cover === c.id ? " is-active" : ""}`}
                 onClick={() => setCover(c.id)}
                 aria-pressed={cover === c.id}
-                aria-label={t(c.label)}
-                style={{
-                  position: "relative",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  padding: "6px 8px",
-                  border: cover === c.id ? "2px solid var(--primary)" : "2px solid transparent",
-                  borderRadius: 10,
-                  background: "none",
-                  cursor: "pointer",
-                }}
               >
-                <NotebookCover cover={c.id} name="" width={52} />
-                <div className="small" style={{ marginTop: 6, whiteSpace: "nowrap", textAlign: "center" }}>
-                  {t(c.label)}
-                </div>
-                {cover === c.id ? (
-                  <span
-                    aria-hidden
-                    style={{
-                      position: "absolute",
-                      top: 2,
-                      right: 2,
-                      width: 18,
-                      height: 18,
-                      borderRadius: "50%",
-                      background: "var(--primary)",
-                      color: "var(--primary-foreground)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Icon name="check" size={12} />
-                  </span>
-                ) : null}
+                <NotebookCover cover={c.id} name="" bare width={48} className="opt-box" style={{ borderRadius: "3px 8px 8px 3px" }} />
+                {t(c.label)}
               </button>
             ))}
           </div>
@@ -123,14 +107,16 @@ export function NotebookForm({
       <div className="field">
         <span className="field-label">
           {t("Default page style")}
-          <span>{t(PAGE_STYLES.find((s) => s.id === style)?.label ?? "")}</span>
+          <span className="field-aside">{t(PAGE_STYLES.find((s) => s.id === style)?.label ?? "")}</span>
         </span>
         <PageStylePicker value={style} onChange={setStyle} />
-        <span className="muted small">{t("New pages use this style. You can change it for each page later.")}</span>
+        <span className="muted small">{t("You can change the style for each page later.")}</span>
       </div>
-      <button type="submit" className="btn btn-primary btn-block" disabled={busy}>
-        {busy ? t("Working…") : submitText}
-      </button>
+      {id ? null : (
+        <button type="submit" className="btn btn-primary btn-block" disabled={busy}>
+          {busy ? t("Working…") : submitText}
+        </button>
+      )}
     </form>
   );
 }

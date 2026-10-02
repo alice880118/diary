@@ -1256,3 +1256,201 @@ html[data-motion="reduce"] *::after {
   transform: translateX(-50%);
   background: var(--primary);
 }
+
+/* ---------- Journal paper (v2 calendar / shelf) ---------- */
+
+.journal-bg {
+  background: var(--journal-page) radial-gradient(#d9d2c3 1px, transparent 1.3px) 0 0 / 16px 16px;
+}
+
+/* Washi tape strip; the color/pattern comes from tapeFill(). */
+.deco-tape {
+  position: absolute;
+  height: 18px;
+  opacity: 0.9;
+  clip-path: polygon(0 8%, 4% 0, 8% 10%, 12% 0, 16% 8%, 20% 0, 80% 0, 84% 8%, 88% 0, 92% 10%, 96% 0, 100% 8%, 100% 92%, 96% 100%, 92% 90%, 88% 100%, 84% 92%, 80% 100%, 20% 100%, 16% 92%, 12% 100%, 8% 90%, 4% 100%, 0 92%);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.lab {
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.ell {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* Pick-one option (cover, page style): ring on the swatch, bold label. */
+.opt {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 3px 2px;
+  border: 0;
+  background: none;
+  font-size: 11.5px;
+  color: #666;
+  cursor: pointer;
+}
+
+.opt.is-active {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.opt .opt-box {
+  border-radius: 6px;
+}
+
+/* Outline, not box-shadow: covers carry their own inline shadow. */
+.opt.is-active .opt-box {
+  outline: 1.5px solid var(--foreground);
+  outline-offset: 2px;
+}
+
+.opt:focus-visible {
+  outline: none;
+}
+
+.opt:focus-visible .opt-box {
+  outline: 1.5px solid var(--foreground);
+  outline-offset: 2px;
+}
+
+.hscroll-fade {
+  position: relative;
+}
+
+.hscroll-fade::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 36px;
+  background: linear-gradient(90deg, rgb(255 255 255 / 0), var(--background));
+  pointer-events: none;
+}
+
+.nb-preview {
+  position: relative;
+  height: 180px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #eee;
+  border-radius: var(--radius-lg);
+  margin: 4px 0 16px;
+}
+
+.field-aside {
+  font-weight: 400;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+/* ---------- Bookshelf ---------- */
+
+.nb-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px 16px;
+}
+
+.nb-cell {
+  min-width: 0;
+}
+
+.nb-open {
+  display: block;
+  width: 84%;
+  margin: 0 auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.nb-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 10px;
+  padding-left: 8%;
+}
+
+.nb-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.nb-sub {
+  font-size: 11.5px;
+}
+
+.icon-btn.nb-more {
+  min-width: 32px;
+  height: 32px;
+  padding: 0;
+}
+
+.nb-new {
+  width: 84%;
+  margin: 0 auto;
+  aspect-ratio: 1 / 1.33;
+  border-radius: 4px 12px 12px 4px;
+  border: 1.5px dashed #d6d2c8;
+  background: rgb(255 255 255 / 0.35);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #9a948a;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.continue-card {
+  position: relative;
+  width: 100%;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  margin-bottom: 22px;
+  overflow: visible;
+  border: 1px solid #e6e6e3;
+  border-radius: var(--radius-xl);
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+  cursor: pointer;
+}
+
+.continue-card > svg:last-child {
+  color: var(--muted-foreground);
+  flex: none;
+}
+
+.continue-thumb {
+  width: 44px;
+  height: 58px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  border: 1px solid #e6e6e3;
+  background: var(--journal-page) radial-gradient(#d9d2c3 1px, transparent 1.3px) 0 0 / 8px 8px;
+  color: var(--muted-foreground);
+}
