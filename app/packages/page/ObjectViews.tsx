@@ -5,6 +5,7 @@ import {
   type ImageObject,
   type LinkObject,
   type NoteObject,
+  type NoteShape,
   type PageObject,
   type LinkShape,
   type StickerObject,
@@ -182,7 +183,12 @@ export function tapeFill(pattern: TapePattern, color?: string): string {
 }
 
 function noteShapeStyle(o: NoteObject): CSSProperties {
-  switch (o.shape) {
+  return noteShapeCss(o.shape);
+}
+
+/** Clip / radius for a sticky-note shape; also used by month covers. */
+export function noteShapeCss(shape: NoteShape): CSSProperties {
+  switch (shape) {
     case "rounded":
       return { borderRadius: 26 };
     case "torn": {

@@ -23,6 +23,8 @@ import {
   type Asset,
   type AssetRole,
   type HomeBoard,
+  type MonthCover,
+  type MonthGoal,
   type MonthlyOverview,
   type Notebook,
   type Page,
@@ -421,6 +423,122 @@ export async function listMonths(notebookId: string) {
 export async function saveMonth(m: MonthlyOverview) {
   await putOne("months", { ...m, updatedAt: Date.now() });
   emitChange();
+}
+
+export const MAX_GOALS = 5;
+export const GOAL_MAX_LEN = 30;
+
+export const DEFAULT_COVER: MonthCover = {
+  paper: "#fdfaf0",
+  shape: "polaroid",
+  fix: "tape",
+  tapePattern: "stripe",
+  tapeColor: "#f2a7bd",
+};
+
+export function coverOfMonth(m: MonthlyOverview | undefined): MonthCover {
+  return { ...DEFAULT_COVER, ...(m?.cover ?? {}) };
+}
+
+export function goalsOf(m: MonthlyOverview | undefined): MonthGoal[] {
+  return [...(m?.goals ?? [])].sort((a, b) => a.order - b.order);
+}
+
+export function prevYm(ym: string) {
+  const [y, mo] = ym.split("-").map(Number);
+  const d = new Date(y, mo - 2, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/** Applies a change to one month record (created if missing) in a transaction. */
+export async function updateMonth(notebookId: string, ym: string, fn: (m: MonthlyOverview) => MonthlyOverview) {
+  await withTx(["months"], "readwrite", async (tx) => {
+    const key = monthKey(notebookId, ym);
+    const cur = (await txGet<MonthlyOverview>(tx, "months", key)) ?? {
+      key,
+      notebookId,
+      ym,
+      highlight: null,
+      sticker: null,
+      updatedAt: 0,
+    };
+    await txPut(tx, "months", { ...fn(cur), key, updatedAt: Date.now() });
+  });
+  emitChange();
+}
+
+/**
+ * Saves the goal list from the edit sheet. Goals carried in from the previous
+ * month that were deleted here go back to unfinished there.
+ */
+export async function saveGoals(notebookId: string, ym: string, goals: MonthGoal[]) {
+  await withTx(["months"], "readwrite", async (tx) => {
+    const key = monthKey(notebookId, ym);
+    const cur = await txGet<MonthlyOverview>(tx, "months", key);
+    const kept = new Set(goals.map((g) => g.id));
+    const dropped = (cur?.goals ?? []).filter((g) => !kept.has(g.id) && g.carriedFrom);
+    const clean = goals
+      .map((g) => ({ ...g, text: g.text.trim().slice(0, GOAL_MAX_LEN) }))
+      .filter((g) => g.text)
+      .slice(0, MAX_GOALS)
+      .map((g, i) => ({ ...g, order: i }));
+    await txPut(tx, "months", {
+      ...(cur ?? { key, notebookId, ym, highlight: null, sticker: null }),
+      key,
+      goals: clean,
+      updatedAt: Date.now(),
+    });
+    for (const g of dropped) {
+      const fromKey = monthKey(notebookId, g.carriedFrom!);
+      const from = await txGet<MonthlyOverview>(tx, "months", fromKey);
+      if (!from?.goals) continue;
+      await txPut(tx, "months", {
+        ...from,
+        goals: from.goals.map((x) => (x.id === g.id && x.movedTo === ym ? { ...x, movedTo: null } : x)),
+        updatedAt: Date.now(),
+      });
+    }
+  });
+  emitChange();
+}
+
+/**
+ * First visit to the current month: copies last month's unfinished goals that
+ * weren't carried yet, up to the limit. Runs once per month; returns how many
+ * were carried.
+ */
+export async function carryOverGoals(notebookId: string, ym: string): Promise<number> {
+  let carried = 0;
+  await withTx(["months"], "readwrite", async (tx) => {
+    const key = monthKey(notebookId, ym);
+    const cur = await txGet<MonthlyOverview>(tx, "months", key);
+    if (cur?.carried) return;
+    const from = prevYm(ym);
+    const prev = await txGet<MonthlyOverview>(tx, "months", monthKey(notebookId, from));
+    const open = goalsOf(prev).filter((g) => !g.done && !g.movedTo);
+    if (!prev || !open.length) return;
+    const goals = goalsOf(cur);
+    const ids = new Set(goals.map((g) => g.id));
+    const take = open.filter((g) => !ids.has(g.id)).slice(0, Math.max(0, MAX_GOALS - goals.length));
+    if (!take.length) return;
+    const next = [...goals, ...take.map((g) => ({ ...g, done: false, carriedFrom: from, movedTo: null }))].map((g, i) => ({ ...g, order: i }));
+    await txPut(tx, "months", {
+      ...(cur ?? { key, notebookId, ym, highlight: null, sticker: null }),
+      key,
+      goals: next,
+      carried: true,
+      updatedAt: Date.now(),
+    });
+    const moved = new Set(take.map((g) => g.id));
+    await txPut(tx, "months", {
+      ...prev,
+      goals: (prev.goals ?? []).map((g) => (moved.has(g.id) ? { ...g, movedTo: ym } : g)),
+      updatedAt: Date.now(),
+    });
+    carried = take.length;
+  });
+  if (carried) emitChange();
+  return carried;
 }
 
 export function pagesInMonth(pages: Page[], ym: string) {

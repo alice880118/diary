@@ -133,6 +133,25 @@ export default function Settings() {
         ))}
       </div>
 
+      <div className="section-title">{t("Week starts on")}</div>
+      <div className="tabs" style={{ marginBottom: 18 }}>
+        {(
+          [
+            [1, t("Monday")],
+            [0, t("Sunday")],
+          ] as [0 | 1, string][]
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            className={`tab${(settings.data?.weekStart ?? 1) === id ? " is-active" : ""}`}
+            onClick={() => void updateSettings({ weekStart: id }).catch((err) => toast(describeError(err), "error"))}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       <div className="section-title">{t("Motion")}</div>
       <div className="tabs" style={{ marginBottom: 6 }}>
         {(

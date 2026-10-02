@@ -1,29 +1,34 @@
 import { useNavigate, useParams } from "@remix-run/react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLive } from "~/packages/db/events";
-import { formatDate, formatDateShort, formatYm, todayLocal, ymOf } from "~/packages/db/id";
+import { MONTHS, formatDate, formatYm, monthName, toLocalDate, todayLocal, ymOf } from "~/packages/db/id";
 import { describeError } from "~/packages/db/idb";
 import {
+  carryOverGoals,
+  coverOfMonth,
   createPage,
   duplicatePage,
   getMonth,
   getNotebook,
+  getSettings,
   listPages,
   pagesInMonth,
+  prevYm,
   setPageDate,
   trashPage,
 } from "~/packages/db/repo";
 import type { Page } from "~/packages/db/types";
 import { DateSheet } from "~/packages/notebook/DateSheet";
-import { MonthVisual } from "~/packages/notebook/MonthCard";
-import { computeMonthPreview } from "~/packages/notebook/monthPreview";
-import { MonthPreviewSheet } from "~/packages/notebook/MonthPreviewSheet";
-import { PageSurface } from "~/packages/page/PageSurface";
+import { DaySheet, HighlightSheet } from "~/packages/notebook/DaySheet";
+import { GoalsCard, GoalsSheet } from "~/packages/notebook/Goals";
+import { CoverNote, CoverSheet, SnapFill, coverSnap } from "~/packages/notebook/MonthCover";
+import { computeMonthPreview, firstLine, firstSticker, pagesByDate } from "~/packages/notebook/monthPreview";
+import "~/packages/notebook/calendar.css";
 import { Icon } from "~/packages/shell/Icon";
 import { AppHeader, BackButton, EmptyState, Screen } from "~/packages/shell/Layout";
 import { ConfirmSheet, Menu } from "~/packages/shell/Sheet";
 import { useToast } from "~/packages/shell/toast";
-import { t } from "~/packages/i18n";
+import { isZh, t, tn } from "~/packages/i18n";
 
 function shiftYm(ym: string, delta: number) {
   const [y, m] = ym.split("-").map(Number);
@@ -31,24 +36,57 @@ function shiftYm(ym: string, delta: number) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+const WEEK_EN = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+const WEEK_ZH = ["日", "一", "二", "三", "四", "五", "六"];
+
+/** Calendar cells covering the month in whole weeks. */
+function monthGrid(ym: string, weekStart: 0 | 1) {
+  const [y, m] = ym.split("-").map(Number);
+  const first = new Date(y, m - 1, 1);
+  const lead = (first.getDay() - weekStart + 7) % 7;
+  const days = new Date(y, m, 0).getDate();
+  const total = Math.ceil((lead + days) / 7) * 7;
+  return Array.from({ length: total }, (_, i) => {
+    const d = new Date(y, m - 1, 1 - lead + i);
+    return { date: toLocalDate(d), day: d.getDate(), inMonth: d.getMonth() === m - 1 };
+  });
+}
+
 export default function MonthRecords() {
   const { nid = "", ym = "" } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
-  const [adding, setAdding] = useState(false);
-  const [editPreview, setEditPreview] = useState(false);
+  const [adding, setAdding] = useState<string | null>(null);
+  const [editHighlight, setEditHighlight] = useState(false);
+  const [editCover, setEditCover] = useState(false);
+  const [editGoals, setEditGoals] = useState(false);
+  const [day, setDay] = useState<string | null>(null);
   const [menuFor, setMenuFor] = useState<Page | null>(null);
   const [dateFor, setDateFor] = useState<Page | null>(null);
   const [deleting, setDeleting] = useState<Page | null>(null);
+  const carriedFor = useRef<string | null>(null);
 
   const data = useLive(async () => {
-    const [nb, pages, overview] = await Promise.all([
+    const [nb, pages, overview, settings] = await Promise.all([
       getNotebook(nid),
       listPages(nid),
       getMonth(nid, ym),
+      getSettings(),
     ]);
-    return { nb, pages, overview };
+    return { nb, pages, overview, settings };
   }, [nid, ym]);
+
+  const today = todayLocal();
+  useEffect(() => {
+    // First visit to the current month brings over last month's open goals.
+    if (ym !== ymOf(today) || carriedFor.current === `${nid}:${ym}`) return;
+    carriedFor.current = `${nid}:${ym}`;
+    carryOverGoals(nid, ym)
+      .then((n) => {
+        if (n) toast(tn(n, "{n} goal carried over from {month}", "{n} goals carried over from {month}").replace("{month}", monthName(Number(prevYm(ym).slice(5, 7)))), "success");
+      })
+      .catch(() => undefined);
+  }, [nid, ym, today, toast]);
 
   if (!/^\d{4}-\d{2}$/.test(ym)) {
     return (
@@ -63,7 +101,7 @@ export default function MonthRecords() {
   if (!data.data) {
     return <Screen header={<AppHeader title="" left={<BackButton to={back} />} />}>{null}</Screen>;
   }
-  const { nb, pages, overview } = data.data;
+  const { nb, pages, overview, settings } = data.data;
   if (!nb || nb.deletedAt) {
     return (
       <Screen header={<AppHeader title={t("Notebook not found")} left={<BackButton to="/diary" />} />}>
@@ -73,111 +111,137 @@ export default function MonthRecords() {
   }
   const monthPages = pagesInMonth(pages, ym);
   const preview = computeMonthPreview(ym, monthPages, overview);
-  const today = todayLocal();
+  const byDate = pagesByDate(monthPages);
+  const weekStart = settings.weekStart ?? 1;
+  const grid = monthGrid(ym, weekStart);
+  const week = Array.from({ length: 7 }, (_, i) => (isZh() ? WEEK_ZH : WEEK_EN)[(i + weekStart) % 7]);
   const defaultDate = ymOf(today) === ym ? today : `${ym}-01`;
+  const month = Number(ym.slice(5, 7));
+  const go = (delta: number) => navigate(`/diary/${nid}/m/${shiftYm(ym, delta)}`, { replace: true });
 
   const add = async (date: string) => {
     try {
       const p = await createPage(nid, date);
-      setAdding(false);
+      setAdding(null);
+      setDay(null);
       navigate(`/page/${p.id}/edit`);
     } catch (err) {
       toast(describeError(err), "error");
     }
   };
 
+  const openDay = (date: string) => {
+    const list = byDate.get(date) ?? [];
+    if (list.length === 0) setAdding(date);
+    else if (list.length === 1) navigate(`/page/${list[0].id}`);
+    else setDay(date);
+  };
+
   return (
     <Screen
+      bodyClassName="journal-bg"
       header={
         <AppHeader
-          title={formatYm(ym)}
-          subtitle={nb.name}
+          title={nb.name}
+          subtitle={formatYm(ym)}
           left={<BackButton to={back} />}
           right={
-            <button type="button" className="icon-btn" aria-label={t("New page")} onClick={() => setAdding(true)}>
+            <button type="button" className="icon-btn" aria-label={t("New page")} onClick={() => setAdding(defaultDate)}>
               <Icon name="plus" />
             </button>
           }
         />
       }
     >
-      <div className="pad">
-        <div className="row-between" style={{ marginBottom: 12 }}>
-          <button type="button" className="btn btn-sm" onClick={() => navigate(`/diary/${nid}/m/${shiftYm(ym, -1)}`, { replace: true })}>
-            <Icon name="chevronLeft" size={16} /> {t("Previous month")}
-          </button>
-          <button type="button" className="btn btn-sm" onClick={() => navigate(`/diary/${nid}/m/${shiftYm(ym, 1)}`, { replace: true })}>
-            {t("Next month")} <Icon name="chevronRight" size={16} />
-          </button>
-        </div>
-
-        <div className="card row" style={{ gap: 14, alignItems: "center" }}>
-          <div style={{ width: 84, height: 96, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <MonthVisual preview={preview} size={84} />
+      <div className="pad cal-body">
+        <div className="cal-title">
+          <div style={{ minWidth: 0 }}>
+            <div className="muted cal-year">{year}</div>
+            <div className="cal-h1">{isZh() ? `${month}月` : MONTHS[month - 1]}</div>
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="muted small">
-              {t("Month highlight")} {preview.highlightManual ? t("(manual)") : t("(auto)")}
-            </div>
-            <div style={{ fontWeight: 600, margin: "4px 0 8px", lineHeight: 1.4 }}>
-              {preview.highlight || t("No entries yet")}
-            </div>
-            <button type="button" className="btn btn-sm" onClick={() => setEditPreview(true)}>
-              <Icon name="edit" size={16} /> {t("Edit month preview")}
+          <div className="float-ctrl">
+            <button type="button" className="icon-btn" aria-label={t("Previous month")} onClick={() => go(-1)}>
+              <Icon name="chevronLeft" />
+            </button>
+            <button type="button" className="icon-btn" aria-label={t("Next month")} onClick={() => go(1)}>
+              <Icon name="chevronRight" />
             </button>
           </div>
         </div>
+        <button type="button" className="cal-highlight" onClick={() => setEditHighlight(true)} aria-label={t("Month highlight")}>
+          <span className="ell">
+            {preview.highlight ? <span className="marker">{preview.highlight}</span> : <span className="muted">{t("Add a highlight for this month")}</span>}
+          </span>
+          <span className="muted" style={{ flex: "none", display: "flex" }}>
+            <Icon name="edit" size={15} />
+          </span>
+        </button>
 
-        {monthPages.length === 0 ? (
-          <EmptyState
-            title={t("No entries this month")}
-            action={
-              <button type="button" className="btn btn-primary" onClick={() => setAdding(true)}>
-                <Icon name="plus" size={18} /> {t("Add first page")}
-              </button>
-            }
-          />
-        ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginTop: 16 }}>
-            {monthPages.map((p) => (
-              <div key={p.id} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                <button
-                  type="button"
-                  onClick={() => navigate(`/page/${p.id}`)}
-                  style={{ border: 0, padding: 0, background: "none", cursor: "pointer" }}
-                  aria-label={t("Open page for {x}", { x: formatDate(p.date) })}
-                >
-                  <PageSurface page={p} width={100} thumb />
-                </button>
-                <div className="row" style={{ width: "100%", justifyContent: "space-between" }}>
-                  <span className="small">{formatDateShort(p.date)}</span>
-                  <button
-                    type="button"
-                    className="icon-btn"
-                    style={{ minWidth: 36, height: 36 }}
-                    aria-label={t("Page actions")}
-                    onClick={() => setMenuFor(p)}
-                  >
-                    <Icon name="more" size={18} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-        {monthPages.length ? (
-          <button type="button" className="btn btn-block" style={{ marginTop: 18 }} onClick={() => setAdding(true)}>
-            <Icon name="plus" size={18} /> {t("New page")}
+        <div className="cal-top">
+          <GoalsCard overview={overview} onEdit={() => setEditGoals(true)} />
+          <button type="button" className="cal-cover" aria-label={t("Month cover")} onClick={() => setEditCover(true)}>
+            <CoverNote cover={coverOfMonth(overview)} snap={coverSnap(overview, monthPages)} caption={t("Cover · {m}", { m: monthName(month, true) })} width="86%" />
           </button>
-        ) : null}
+        </div>
+
+        <div className="cal-week" aria-hidden>
+          {week.map((w) => (
+            <span key={w}>{w}</span>
+          ))}
+        </div>
+        <div className="card cal-grid" role="grid">
+          {grid.map((c, i) => {
+            const list = c.inMonth ? byDate.get(c.date) ?? [] : [];
+            const first = list[0];
+            const snap = first ? firstSticker(first) : null;
+            const text = first ? firstLine(first) : "";
+            const last = i >= grid.length - 7;
+            return (
+              <button
+                key={c.date}
+                type="button"
+                role="gridcell"
+                className={`cal-cell${last ? " is-last" : ""}${day === c.date ? " is-sel" : ""}`}
+                disabled={!c.inMonth}
+                aria-label={c.inMonth ? `${formatDate(c.date)}${list.length ? ` · ${tn(list.length, "{n} page", "{n} pages")}` : ""}` : undefined}
+                onClick={() => openDay(c.date)}
+              >
+                <span className={`cal-d${c.inMonth ? "" : " is-out"}${c.date === today && c.inMonth ? " is-today" : ""}`}>{c.day}</span>
+                {first ? (
+                  <>
+                    <span className="cal-sg">
+                      {snap ? (
+                        <span className="cal-stk" style={snap.h > snap.w ? { width: `${(62 * snap.w) / snap.h}%` } : undefined}>
+                          <SnapFill snap={snap} rot={((c.day % 3) - 1) * 7} />
+                        </span>
+                      ) : (
+                        <span className="cal-dot" />
+                      )}
+                    </span>
+                    {text ? <span className="cal-tx">{text}</span> : null}
+                    {list.length > 1 ? <span className="cnt cal-cnt">{list.length}</span> : null}
+                  </>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
+      <DaySheet
+        date={day}
+        pages={day ? byDate.get(day) ?? [] : []}
+        onClose={() => setDay(null)}
+        onOpen={(p) => navigate(`/page/${p.id}`)}
+        onMore={(p) => setMenuFor(p)}
+        onAdd={(d) => void add(d)}
+      />
       <DateSheet
-        open={adding}
+        open={adding !== null}
         title={t("New page")}
-        initial={defaultDate}
+        initial={adding ?? defaultDate}
         confirmText={t("Create and edit")}
-        onClose={() => setAdding(false)}
+        onClose={() => setAdding(null)}
         onConfirm={(d) => void add(d)}
       />
       <DateSheet
@@ -236,12 +300,9 @@ export default function MonthRecords() {
           setDeleting(null);
         }}
       />
-      <MonthPreviewSheet
-        open={editPreview}
-        onClose={() => setEditPreview(false)}
-        overview={overview}
-        monthPages={monthPages}
-      />
+      <HighlightSheet open={editHighlight} onClose={() => setEditHighlight(false)} overview={overview} auto={preview.highlightManual ? "" : preview.highlight} />
+      <CoverSheet open={editCover} onClose={() => setEditCover(false)} overview={overview} monthPages={monthPages} />
+      <GoalsSheet open={editGoals} onClose={() => setEditGoals(false)} overview={overview} />
     </Screen>
   );
 }

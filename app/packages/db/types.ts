@@ -215,6 +215,30 @@ export interface Page {
   deletedAt: number | null;
 }
 
+export interface MonthGoal {
+  id: string;
+  /** Up to 30 characters; blank goals aren't stored. */
+  text: string;
+  done: boolean;
+  order: number;
+  /** Month it was carried over from ("YYYY-MM"), for "from Sep". */
+  carriedFrom?: string | null;
+  /** Month it was carried on to; it no longer counts as unfinished here. */
+  movedTo?: string | null;
+}
+
+export type CoverShape = NoteShape | "polaroid";
+export type CoverFix = "tape" | "pin" | "none";
+
+/** Month cover look; absent = polaroid, cream photo area, pink stripe tape. */
+export interface MonthCover {
+  paper: string;
+  shape: CoverShape;
+  fix: CoverFix;
+  tapePattern: TapePattern;
+  tapeColor: string;
+}
+
 export interface MonthlyOverview {
   /** `${notebookId}:${YYYY-MM}` */
   key: string;
@@ -222,6 +246,12 @@ export interface MonthlyOverview {
   ym: string;
   highlight: string | null;
   sticker: StickerSnap | null;
+  /** Optional (added with the calendar redesign); absent = no goals. */
+  goals?: MonthGoal[];
+  /** Optional; absent = default cover. */
+  cover?: MonthCover;
+  /** Set once unfinished goals from the previous month were carried in. */
+  carried?: boolean;
   updatedAt: number;
 }
 
@@ -359,6 +389,8 @@ export interface AppSettings {
   motion: MotionPref;
   onboarded: boolean;
   lastBackupAt: number | null;
+  /** First day of the week in the month calendar: 1 = Monday (default), 0 = Sunday. */
+  weekStart?: 0 | 1;
 }
 
 /* ------------------------------------------------------------------ */
