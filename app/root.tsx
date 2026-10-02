@@ -21,10 +21,10 @@ installRangeFill();
 
 export const links = () => [
   { rel: "stylesheet", href: appCss },
-  { rel: "manifest", href: "/manifest.webmanifest" },
-  { rel: "icon", href: "/favicon-32.png", type: "image/png", sizes: "32x32" },
-  { rel: "icon", href: "/icon-192.png", type: "image/png", sizes: "192x192" },
-  { rel: "apple-touch-icon", href: "/apple-touch-icon.png", sizes: "180x180" },
+  { rel: "manifest", href: "/manifest.webmanifest?v=2" },
+  { rel: "icon", href: "/favicon-32.png?v=2", type: "image/png", sizes: "32x32" },
+  { rel: "icon", href: "/icon-192.png?v=2", type: "image/png", sizes: "192x192" },
+  { rel: "apple-touch-icon", href: "/apple-touch-icon.png?v=2", sizes: "180x180" },
 ];
 
 export function Layout({ children }: { children: ReactNode }) {
