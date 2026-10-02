@@ -64,6 +64,8 @@ const PATHS: Record<string, string> = {
   unlock: "M6 11h12v9H6zM8 11V8a4 4 0 017.5-2",
   up: "M12 19V5M6 11l6-6 6 6",
   down: "M12 5v14M6 13l6 6 6-6",
+  arrowDownRight: "M7 7l10 10M17 9v8H9",
+  arrowUpRight: "M7 17L17 7M9 7h8v8",
   eye: "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 100 6 3 3 0 000-6z",
   eyeOff: "M3 3l18 18M10.6 5.1A10 10 0 0112 5c6 0 10 7 10 7a17 17 0 01-3 3.7M6.6 6.6C3.8 8.4 2 12 2 12s4 7 10 7a9.8 9.8 0 005-1.4",
   check: "M5 12l5 5 9-10",

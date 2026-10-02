@@ -1259,8 +1259,9 @@ html[data-motion="reduce"] *::after {
 
 /* ---------- Journal paper (v2 calendar / shelf) ---------- */
 
+/* --diary-bg / --diary-dot follow the "Diary background" setting (see DiaryTheme). */
 .journal-bg {
-  background: var(--journal-page) radial-gradient(#d9d2c3 1px, transparent 1.3px) 0 0 / 16px 16px;
+  background: var(--diary-bg, var(--journal-page)) radial-gradient(var(--diary-dot, #d9d2c3) 1px, transparent 1.3px) 0 0 / 16px 16px;
 }
 
 /* Washi tape strip; the color/pattern comes from tapeFill(). */
@@ -1453,4 +1454,120 @@ html[data-motion="reduce"] *::after {
   border: 1px solid #e6e6e3;
   background: var(--journal-page) radial-gradient(#d9d2c3 1px, transparent 1.3px) 0 0 / 8px 8px;
   color: var(--muted-foreground);
+}
+
+/* ---------- Fill picker (solid / gradient) ---------- */
+
+.fill-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: -6px 0 16px;
+  padding: 12px;
+  border-radius: var(--radius-lg);
+  background: #f7f7f5;
+}
+
+.fill-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.fill-dot {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgb(0 0 0 / 0.1);
+  cursor: pointer;
+}
+
+.fill-dot.is-active {
+  box-shadow: var(--ring-sel);
+}
+
+.fill-dot.is-add {
+  display: grid;
+  place-items: center;
+  border: 1.5px dashed #bbb;
+  color: #999;
+  overflow: hidden;
+}
+
+.fill-dot input,
+.fill-stop input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.fill-grads {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.fill-grads button {
+  aspect-ratio: 1;
+  border-radius: 10px;
+  border: 1px solid rgb(0 0 0 / 0.08);
+  cursor: pointer;
+}
+
+.fill-grads button.is-active {
+  box-shadow: var(--ring-sel);
+}
+
+.fill-stops {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.fill-stop {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 10px 0 6px;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  background: var(--background);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.fill-stop span {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid rgb(0 0 0 / 0.1);
+}
+
+.fill-angles {
+  display: flex;
+  margin-left: auto;
+}
+
+.fill-angles .icon-btn {
+  min-width: 36px;
+  height: 36px;
+}
+
+.fill-angles .icon-btn.is-active {
+  background: var(--foreground);
+  color: #fff;
+}
+
+.diary-bg-preview {
+  height: 56px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-soft);
+  margin-bottom: 12px;
 }

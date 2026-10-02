@@ -9,6 +9,7 @@ import { ActButton, BOARD_COLORS, BoardView, type BoardMode } from "~/packages/h
 import { PRESETS, PresetArt, defaultItems } from "~/packages/home/presets";
 import { useBoardDoc } from "~/packages/home/useBoardDoc";
 import { t } from "~/packages/i18n";
+import { FillPicker, fillCss } from "~/packages/shell/FillPicker";
 import { Icon } from "~/packages/shell/Icon";
 import { BottomNav } from "~/packages/shell/Layout";
 import { Sheet } from "~/packages/shell/Sheet";
@@ -269,6 +270,7 @@ function BoardSheet({
   onResetStickers: () => void;
 }) {
   const bg = board.background;
+  const custom = bg.color === "custom";
   const textures: [BoardTexture, string][] = [
     ["smooth", t("Smooth")],
     ["grain", t("Grain")],
@@ -277,7 +279,7 @@ function BoardSheet({
   return (
     <Sheet open={open} title={t("Board")} onClose={onClose}>
       <div className="field-label">
-        {t("Color")} <span>{BOARD_COLORS.find((c) => c.id === bg.color)?.label}</span>
+        {t("Color")} <span className="field-aside">{custom ? t("Custom") : BOARD_COLORS.find((c) => c.id === bg.color)?.label}</span>
       </div>
       <div className="board-colors">
         {BOARD_COLORS.map((c) => (
@@ -291,7 +293,18 @@ function BoardSheet({
             onClick={() => onBg({ color: c.id })}
           />
         ))}
+        <button
+          type="button"
+          aria-label={t("Custom")}
+          aria-pressed={custom}
+          className={`is-custom${custom ? " is-active" : ""}`}
+          style={custom && bg.custom ? { background: fillCss(bg.custom) } : undefined}
+          onClick={() => onBg({ color: "custom", custom: bg.custom ?? { kind: "gradient", from: "#d9c8f2", to: "#cfe4fb", angle: 180 } })}
+        >
+          {custom ? null : <Icon name="palette" size={18} />}
+        </button>
       </div>
+      {custom && bg.custom ? <FillPicker value={bg.custom} onChange={(f) => onBg({ color: "custom", custom: f })} /> : null}
       <div className="field-label">{t("Texture")}</div>
       <div className="tabs">
         {textures.map(([id, label]) => (

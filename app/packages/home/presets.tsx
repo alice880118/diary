@@ -63,6 +63,14 @@ function asteriskPath(cx: number, cy: number, len: number, hw: number) {
   return `M${pts.join("L")}Z`;
 }
 
+const CLOUD_OVALS = (
+  <>
+    <ellipse cx={132} cy={323} rx={112} ry={202} transform="rotate(12 132 323)" />
+    <ellipse cx={275} cy={270} rx={106} ry={200} transform="rotate(15 275 270)" />
+    <ellipse cx={432} cy={221} rx={101} ry={201} transform="rotate(15 432 221)" />
+  </>
+);
+
 const LAV = "#8b7af2";
 const LAV_LIGHT = "#f3f0ff";
 
@@ -142,25 +150,27 @@ const PLAYFUL: Preset[] = [
   {
     id: "cloud",
     set: "playful",
-    ratio: 1.02,
-    w: 260 / BOARD_W,
+    ratio: 546 / 556,
+    w: 262 / BOARD_W,
     render: (ids) => (
-      <svg viewBox="0 0 250 255" width="100%" height="100%" aria-hidden>
+      <svg viewBox="0 0 556 546" width="100%" height="100%" aria-hidden>
         <defs>
-          <Lin id={ids("f")} x1={170} y1={20} x2={90} y2={240} from="#e8e3ff" to="#8d7bf3" />
-          <Grain id={ids("grain")} />
+          <Lin id={ids("f")} x1={470} y1={30} x2={90} y2={510} from="#e4deff" to="#8a76f5" />
+          <Grain id={ids("grain")} strength={0.3} freq={0.75} />
         </defs>
-        <Cut ids={ids} fill={`url(#${ids("f")})`} edge={10}>
-          <ellipse cx={82} cy={158} rx={64} ry={84} />
-          <ellipse cx={158} cy={92} rx={76} ry={74} />
-          <ellipse cx={170} cy={168} rx={64} ry={58} />
-          <ellipse cx={112} cy={196} rx={70} ry={46} />
-        </Cut>
-        <g fill="#5b49e8">
-          <circle cx={150} cy={96} r={7} />
-          <circle cx={182} cy={90} r={7} />
+        {/* Ovals merged through a mask so their overlaps leave no seams. */}
+        <mask id={ids("m")} maskUnits="userSpaceOnUse" x={0} y={0} width={556} height={546}>
+          <g fill="#fff">{CLOUD_OVALS}</g>
+        </mask>
+        <g fill={EDGE} stroke={EDGE} strokeWidth={32}>
+          {CLOUD_OVALS}
         </g>
-        <path d="M152 120q15 12 30-2" fill="none" stroke="#5b49e8" strokeWidth={5} strokeLinecap="round" />
+        <rect width={556} height={546} fill={`url(#${ids("f")})`} mask={`url(#${ids("m")})`} filter={`url(#${ids("grain")})`} />
+        <g fill="#5b3cf0">
+          <circle cx={326} cy={165} r={11} />
+          <circle cx={390} cy={153} r={11} />
+        </g>
+        <path d="M343 197q22 17 44-7" fill="none" stroke="#5b3cf0" strokeWidth={8} strokeLinecap="round" />
       </svg>
     ),
   },

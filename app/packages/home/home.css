@@ -213,8 +213,8 @@
 /* Board settings sheet */
 .board-colors {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
   margin: 10px 0 18px;
 }
 
@@ -223,6 +223,18 @@
   border-radius: var(--radius-lg);
   border: 1px solid rgb(0 0 0 / 0.08);
   cursor: pointer;
+}
+
+.board-colors button.is-custom {
+  display: grid;
+  place-items: center;
+  border: 1.5px dashed #bbb;
+  color: #888;
+  background: conic-gradient(from 90deg, #fedaff, #cfe4fb, #cdeedd, #fff1a1, #fedaff);
+}
+
+.board-colors button.is-custom.is-active {
+  border: 1px solid rgb(0 0 0 / 0.08);
 }
 
 .board-colors button.is-active {

@@ -391,6 +391,8 @@ export interface AppSettings {
   lastBackupAt: number | null;
   /** First day of the week in the month calendar: 1 = Monday (default), 0 = Sunday. */
   weekStart?: 0 | 1;
+  /** Background color of the diary screens (bookshelf, year, month); absent = journal cream. */
+  diaryBg?: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -423,9 +425,13 @@ export interface BoardItem {
  * Stored in the settings store under key "home". Absent until the first
  * edit; readers fill the default board.
  */
+/** A user-picked fill: one color or a two-stop linear gradient (angle in CSS degrees). */
+export type ColorFill = { kind: "solid"; color: string } | { kind: "gradient"; from: string; to: string; angle: number };
+
 export interface HomeBoard {
   key: "home";
-  background: { color: string; texture: BoardTexture; shapes: boolean };
+  /** `color` is a preset id, or "custom" to use `custom` (optional, added later). */
+  background: { color: string; texture: BoardTexture; shapes: boolean; custom?: ColorFill };
   items: BoardItem[];
   /** Doodles in board units (BOARD_W wide), drawn beneath the stickers. */
   strokes: Stroke[];

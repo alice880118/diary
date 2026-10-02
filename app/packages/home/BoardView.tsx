@@ -3,6 +3,7 @@ import { BOARD_H, BOARD_W, type BoardItem, type HomeBoard } from "../db/types";
 import { StrokeSession, type InkConfig, type SessionResult } from "../drawing/session";
 import { StrokeCanvas } from "../drawing/StrokeCanvas";
 import { t } from "../i18n";
+import { fillCss } from "../shell/FillPicker";
 import { Icon } from "../shell/Icon";
 import { StickerArt } from "../sticker/StickerArt";
 import { PresetArt, presetById } from "./presets";
@@ -20,6 +21,16 @@ export const BOARD_COLORS: { id: string; label: string; css: string }[] = [
 
 /** Fill below a short board on tall screens: the bottom color of the board background. */
 const BELOW: Record<string, string> = { blush: "#fedaff" };
+
+/** Board fill and the color used below it on tall screens. */
+export function boardFill(bg: HomeBoard["background"]): { css: string; below: string } {
+  if (bg.color === "custom" && bg.custom) {
+    const c = bg.custom;
+    return { css: fillCss(c), below: c.kind === "solid" ? c.color : c.to };
+  }
+  const p = boardColor(bg.color);
+  return { css: p.css, below: BELOW[p.id] ?? p.css };
+}
 
 export function boardColor(id: string) {
   return BOARD_COLORS.find((c) => c.id === id) ?? BOARD_COLORS[0];
@@ -287,7 +298,7 @@ export function BoardView({
   };
 
   const sel = mode === "stickers" && selectedId ? items.find((it) => it.id === selectedId) ?? null : null;
-  const color = boardColor(board.background.color);
+  const fill = boardFill(board.background);
   const tex = TEXTURE[board.background.texture];
 
   // Action bar position in stage pixels: above the selection, or below it near the top.
@@ -306,11 +317,11 @@ export function BoardView({
   }
 
   return (
-    <div className="board-stage" style={{ height: BOARD_H * s, background: BELOW[color.id] ?? color.css }}>
+    <div className="board-stage" style={{ height: BOARD_H * s, background: fill.below }}>
       <div
         ref={boardRef}
         className={`board${mode === "doodle" ? " is-doodle" : ""}`}
-        style={{ transform: `scale(${s})`, background: color.css }}
+        style={{ transform: `scale(${s})`, background: fill.css }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}

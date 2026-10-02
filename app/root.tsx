@@ -14,6 +14,7 @@ import { MotionProvider } from "./packages/shell/motion";
 import { installRangeFill } from "./packages/shell/rangeFill";
 import { ToastProvider } from "./packages/shell/toast";
 import { LangProvider } from "./packages/i18n/LangProvider";
+import { DiaryTheme } from "./packages/shell/DiaryTheme";
 import { t } from "~/packages/i18n";
 
 installRangeFill();
@@ -74,6 +75,7 @@ export default function App() {
   return (
     <MotionProvider>
       <ToastProvider>
+        <DiaryTheme />
         <LangProvider>
           <div className="app-frame">
             <Outlet />

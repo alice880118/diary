@@ -8,6 +8,8 @@ import { collectGarbage, getSettings, updateSettings } from "~/packages/db/repo"
 import { SCHEMA_VERSION, type MotionPref } from "~/packages/db/types";
 import { Icon } from "~/packages/shell/Icon";
 import { AppHeader, BackButton, Screen } from "~/packages/shell/Layout";
+import { ColorDotsPicker } from "~/packages/shell/FillPicker";
+import { DIARY_BG_COLORS, DIARY_BG_DEFAULT } from "~/packages/shell/DiaryTheme";
 import { Sheet } from "~/packages/shell/Sheet";
 import { useToast } from "~/packages/shell/toast";
 import { saveOrShare } from "~/packages/sticker/exportPng";
@@ -132,6 +134,22 @@ export default function Settings() {
           </button>
         ))}
       </div>
+
+      <div className="section-title row-between">
+        {t("Diary background")}
+        {settings.data?.diaryBg ? (
+          <button type="button" className="btn btn-sm btn-ghost" onClick={() => void updateSettings({ diaryBg: undefined }).catch((err) => toast(describeError(err), "error"))}>
+            {t("Reset")}
+          </button>
+        ) : null}
+      </div>
+      <div className="diary-bg-preview journal-bg" aria-hidden />
+      <ColorDotsPicker
+        colors={DIARY_BG_COLORS}
+        value={settings.data?.diaryBg ?? DIARY_BG_DEFAULT}
+        onChange={(c) => void updateSettings({ diaryBg: c === DIARY_BG_DEFAULT ? undefined : c }).catch((err) => toast(describeError(err), "error"))}
+      />
+      <p className="muted small" style={{ marginBottom: 18 }}>{t("Used behind the bookshelf and calendar pages.")}</p>
 
       <div className="section-title">{t("Week starts on")}</div>
       <div className="tabs" style={{ marginBottom: 18 }}>
