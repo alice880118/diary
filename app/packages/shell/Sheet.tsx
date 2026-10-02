@@ -24,6 +24,9 @@ export function Sheet({
   footer,
   tall = false,
   modal = true,
+  headerRight,
+  studio = false,
+  height,
 }: {
   open: boolean;
   title: ReactNode;
@@ -32,6 +35,12 @@ export function Sheet({
   footer?: ReactNode;
   tall?: boolean;
   modal?: boolean;
+  /** Replaces the close button (e.g. a + or a toggle); Escape and the scrim still close. */
+  headerRight?: ReactNode;
+  /** Lighter studio scrim (28%) so the canvas stays readable. */
+  studio?: boolean;
+  /** Fixed sheet height in px. */
+  height?: number;
 }) {
   const [kbOffset, setKbOffset] = useState(0);
 
@@ -72,10 +81,10 @@ export function Sheet({
   }
   return createPortal(
     <div className={`sheet-root${modal ? "" : " is-modeless"}`}>
-      {modal ? <div className="sheet-backdrop" onClick={onClose} /> : null}
+      {modal ? <div className={`sheet-backdrop${studio ? " is-studio" : ""}`} onClick={onClose} /> : null}
       <section
         className={`sheet${tall ? " is-tall" : ""}`}
-        style={{ bottom: kbOffset }}
+        style={{ bottom: kbOffset, ...(height ? { height, maxHeight: "88%" } : null) }}
         role="dialog"
         aria-modal={modal}
         aria-label={typeof title === "string" ? title : undefined}
@@ -83,9 +92,11 @@ export function Sheet({
         <div className="sheet-grip" />
         <div className="sheet-head">
           <div className="sheet-title">{title}</div>
-          <button type="button" className="icon-btn" aria-label="Close" onClick={onClose}>
-            <Icon name="close" />
-          </button>
+          {headerRight ?? (
+            <button type="button" className="icon-btn" aria-label="Close" onClick={onClose}>
+              <Icon name="close" />
+            </button>
+          )}
         </div>
         <div className="sheet-body">{children}</div>
         {footer ? <div className="sheet-foot">{footer}</div> : null}

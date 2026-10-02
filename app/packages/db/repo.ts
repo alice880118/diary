@@ -406,6 +406,76 @@ export function pagesInMonth(pages: Page[], ym: string) {
 /* Assets                                                              */
 /* ------------------------------------------------------------------ */
 
+/* ---------- asset blobs: iOS Safari fallback ---------- */
+
+/**
+ * WebKit sometimes refuses to store Blobs in IndexedDB ("Error preparing
+ * Blob/File data to be stored in object store"). When that happens the
+ * bytes are stored as an ArrayBuffer instead, and from then on on this
+ * device. Readers accept both forms, so older records are untouched.
+ */
+type StoredAsset = Omit<Asset, "blob"> & { blob?: Blob; bytes?: ArrayBuffer };
+
+const BYTES_KEY = "diary.assetsAsBytes";
+
+export function bytesMode(): boolean {
+  try {
+    return localStorage.getItem(BYTES_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function enableBytesMode() {
+  try {
+    localStorage.setItem(BYTES_KEY, "1");
+  } catch {
+    // Without storage the fallback still applies to this write.
+  }
+}
+
+export function isBlobStoreError(err: unknown): boolean {
+  const e = err as { name?: string; message?: string } | null;
+  return Boolean(e && (/Blob\/File|preparing Blob/i.test(e.message ?? "") || (e.name === "UnknownError" && /blob/i.test(e.message ?? ""))));
+}
+
+async function toBytesRecord(a: StoredAsset): Promise<StoredAsset> {
+  if (!(a.blob instanceof Blob)) return a;
+  const { blob, ...rest } = a;
+  return { ...rest, bytes: await blob.arrayBuffer() };
+}
+
+/** Stored record → Asset with a Blob, whichever form it was saved in. */
+export function hydrateAsset(raw: StoredAsset): Asset;
+export function hydrateAsset(raw: StoredAsset | undefined): Asset | undefined;
+export function hydrateAsset(raw: StoredAsset | undefined): Asset | undefined {
+  if (!raw) return undefined;
+  if (raw.blob instanceof Blob) return raw as Asset;
+  const { bytes, ...rest } = raw;
+  return { ...rest, blob: new Blob([bytes ?? new ArrayBuffer(0)], { type: raw.mime }) };
+}
+
+/** Writes an asset record, switching to ArrayBuffer storage if Blobs are refused. */
+export async function putAssetRecord(a: StoredAsset): Promise<void> {
+  if (bytesMode()) {
+    await putOne("assets", await toBytesRecord(a));
+    return;
+  }
+  try {
+    await putOne("assets", a);
+  } catch (err) {
+    if (!isBlobStoreError(err)) throw err;
+    enableBytesMode();
+    await putOne("assets", await toBytesRecord(a));
+  }
+}
+
+async function patchAsset(id: string, patch: Partial<Asset>) {
+  const raw = await getOne<StoredAsset>("assets", id);
+  if (!raw) return;
+  await putAssetRecord({ ...raw, ...patch });
+}
+
 export async function putAsset(
   blob: Blob,
   meta: {
@@ -430,59 +500,39 @@ export async function putAsset(
     createdAt: Date.now(),
     deletedAt: null,
   };
-  await putOne("assets", asset);
+  await putAssetRecord(asset);
   return asset;
 }
 
 export async function getAsset(id: string) {
-  return getOne<Asset>("assets", id);
+  return hydrateAsset(await getOne<StoredAsset>("assets", id));
 }
 
 export async function listLibraryImages(): Promise<Asset[]> {
-  const all = await getAll<Asset>("assets");
+  const all = (await getAll<StoredAsset>("assets")).map((a) => hydrateAsset(a));
   return all
     .filter((a) => a.library && !a.deletedAt)
     .sort((a, b) => b.createdAt - a.createdAt);
 }
 
 export async function renameAsset(id: string, name: string) {
-  await withTx(["assets"], "readwrite", async (tx) => {
-    const a = await txGet<Asset>(tx, "assets", id);
-    if (a) {
-      await txPut(tx, "assets", { ...a, name });
-    }
-  });
+  await patchAsset(id, { name });
   emitChange();
 }
 
 export async function trashAsset(id: string) {
-  await withTx(["assets"], "readwrite", async (tx) => {
-    const a = await txGet<Asset>(tx, "assets", id);
-    if (a) {
-      await txPut(tx, "assets", { ...a, deletedAt: Date.now() });
-    }
-  });
+  await patchAsset(id, { deletedAt: Date.now() });
   emitChange();
 }
 
 export async function restoreAsset(id: string) {
-  await withTx(["assets"], "readwrite", async (tx) => {
-    const a = await txGet<Asset>(tx, "assets", id);
-    if (a) {
-      await txPut(tx, "assets", { ...a, deletedAt: null });
-    }
-  });
+  await patchAsset(id, { deletedAt: null });
   emitChange();
 }
 
 /** Removes the library entry; the blob survives while anything references it. */
 export async function purgeLibraryAsset(id: string) {
-  await withTx(["assets"], "readwrite", async (tx) => {
-    const a = await txGet<Asset>(tx, "assets", id);
-    if (a) {
-      await txPut(tx, "assets", { ...a, library: false, deletedAt: null });
-    }
-  });
+  await patchAsset(id, { library: false, deletedAt: null });
   await collectGarbage();
   emitChange();
 }

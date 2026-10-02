@@ -6,9 +6,11 @@ import { formatDate, newId, ymOf } from "../db/id";
 import { describeError } from "../db/idb";
 import { duplicatePage, getSticker, listStickers, putAsset, trashPage } from "../db/repo";
 import type { LinkObject, NoteObject, Page, PageObject, Sticker, TextObject } from "../db/types";
-import { DEFAULT_PEN, PenPanel, type PenState } from "../drawing/PenPanel";
+import { DrawBar, inkConfig, shapeStyle, useDrawPrefs, type DrawTool, type StylePatch } from "../create/DrawTools";
+import { SKETCH_COLORS } from "../create/SketchTools";
 import { DateSheet } from "../notebook/DateSheet";
-import { fetchLinkMeta, openExternal } from "../page/links";
+import { fetchLinkMeta, linkBox, openExternal } from "../page/links";
+import { TAPE_COLORS } from "../page/ObjectViews";
 import { PageStylePicker } from "../page/PageStylePicker";
 import { Icon, type IconName } from "../shell/Icon";
 import { AppHeader } from "../shell/Layout";
@@ -53,7 +55,12 @@ export function PageEditor({
   const doc = useEditorDoc(initial);
   const { page, commit } = doc;
   const [mode, setMode] = useState<EditMode>("layout");
-  const [pen, setPen] = useState<PenState>(DEFAULT_PEN);
+  const [inkTool, setInkTool] = useState<DrawTool>("brush");
+  const [inkColor, setInkColor] = useState(SKETCH_COLORS[0]);
+  const [prefs, setPrefs] = useDrawPrefs();
+  const ink = inkTool === "brush" || inkTool === "eraser" ? inkConfig(prefs, inkTool, inkColor, "#fffdf8") : null;
+  const [inkSel, setInkSel] = useState<string | null>(null);
+  const styleSession = useRef(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [panel, setPanel] = useState<Panel>(null);
   const [editing, setEditing] = useState<PageObject | null>(null);
@@ -236,6 +243,8 @@ export function PageEditor({
     textSize: 30,
     strokes: [],
     fix: "tape",
+    tapePattern: "diagonal",
+    tapeColor: TAPE_COLORS[0],
     anchor: { x: 0.5, y: 0.04 },
     sway: 0.6,
   });
@@ -254,8 +263,12 @@ export function PageEditor({
         url: d.url,
         title: d.title,
         display: d.display,
-        w: d.display === "card" ? Math.max(existing.w, 560) : 520,
-        h: d.display === "card" ? 170 : 60,
+        ...(d.shape ? { shape: d.shape } : {}),
+        ...(d.color ? { color: d.color } : {}),
+        // Sticker/tag keep a user-resized box while their display is unchanged.
+        ...((d.display === "sticker" || d.display === "tag") && existing.display === d.display
+          ? {}
+          : linkBox(d.display, existing.w)),
         meta,
       } as Partial<LinkObject>);
     } else {
@@ -264,8 +277,7 @@ export function PageEditor({
         type: "link",
         x: 450,
         y: 780 + jitter(),
-        w: d.display === "card" ? 640 : 520,
-        h: d.display === "card" ? 170 : 60,
+        ...linkBox(d.display),
         rot: 0,
         z: 0,
         locked: false,
@@ -273,6 +285,8 @@ export function PageEditor({
         title: d.title,
         display: d.display,
         meta,
+        ...(d.shape ? { shape: d.shape } : {}),
+        ...(d.color ? { color: d.color } : {}),
       };
       id = o.id;
       addObject(o);
@@ -343,6 +357,17 @@ export function PageEditor({
       <span>{label}</span>
     </button>
   );
+
+  const inkSelStroke = inkSel ? page.ink.find((st) => st.id === inkSel) ?? null : null;
+  /** Style edits on the selected handwriting object; a slider drag is one undo step. */
+  const styleInkSel = (patch: StylePatch, continuous?: boolean) => {
+    if (!inkSelStroke) return;
+    const next = { ...inkSelStroke, ...patch };
+    if ("texture" in patch && patch.texture === undefined) delete next.texture;
+    const record = continuous === true ? !styleSession.current : continuous === false ? !styleSession.current : true;
+    styleSession.current = continuous === true;
+    commit((p) => ({ ...p, ink: p.ink.map((st) => (st.id === next.id ? next : st)) }), record);
+  };
 
   let bottomTools: React.ReactNode;
   if (mode === "ink") {
@@ -430,7 +455,11 @@ export function PageEditor({
       <EditorCanvas
         page={page}
         mode={mode}
-        pen={pen}
+        ink={ink}
+        inkSelect={inkTool === "select"}
+        shapeStyle={inkTool === "shape" ? shapeStyle(prefs, inkColor) : null}
+        inkSel={inkSel}
+        onInkSel={setInkSel}
         selectedId={selectedId}
         onSelect={setSelectedId}
         onCommit={(fn) => commit(fn)}
@@ -476,15 +505,31 @@ export function PageEditor({
           </div>
         </div>
         {mode === "ink" ? (
-          <PenPanel
-            pen={pen}
-            onChange={setPen}
-            extra={
-              <button type="button" className="btn btn-primary btn-block" style={{ marginTop: 6 }} onClick={() => setMode("layout")}>
-                Done
-              </button>
-            }
-          />
+          <div className="ink-bar">
+            <DrawBar
+              tool={inkTool}
+              onTool={(t) => {
+                setInkTool(t);
+                if (t === "brush" || t === "eraser") setInkSel(null);
+              }}
+              tools={["brush", "eraser", "shape", "select"]}
+              prefs={prefs}
+              onPrefs={setPrefs}
+              color={inkColor}
+              onColor={setInkColor}
+              selection={inkSelStroke}
+              onSelectionStyle={styleInkSel}
+              popBottom="calc(100% + 8px)"
+              right={
+                <button type="button" className="btn btn-primary btn-sm" style={{ marginLeft: 4 }} onClick={() => {
+                  setInkSel(null);
+                  setMode("layout");
+                }}>
+                  Done
+                </button>
+              }
+            />
+          </div>
         ) : (
           <div className="editor-tools-wrap">
             <div className="editor-tools" ref={toolsRef}>

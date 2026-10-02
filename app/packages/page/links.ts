@@ -1,4 +1,4 @@
-import type { LinkMeta } from "../db/types";
+import type { LinkDisplay, LinkMeta } from "../db/types";
 
 /** Only http/https are accepted; anything else (javascript:, data:) is rejected. */
 export function normalizeUrl(input: string): string | null {
@@ -80,5 +80,22 @@ export async function fetchLinkMeta(url: string, timeoutMs = 6000): Promise<Link
     return { status: "fail", fetchedAt: Date.now() };
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/**
+ * Box size for a link object. Card and text keep their v1 sizes so existing
+ * links never move or resize unless the user changes how they're displayed.
+ */
+export function linkBox(display: LinkDisplay, prevW?: number): { w: number; h: number } {
+  switch (display) {
+    case "card":
+      return { w: prevW === undefined ? 640 : Math.max(prevW, 560), h: 170 };
+    case "sticker":
+      return { w: 180, h: 180 };
+    case "tag":
+      return { w: 520, h: 64 };
+    default:
+      return { w: 520, h: 60 };
   }
 }

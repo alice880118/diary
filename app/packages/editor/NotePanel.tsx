@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { NOTE_BASE, type NoteObject, type Stroke } from "../db/types";
-import { LiveInk } from "../drawing/liveInk";
+import { StrokeSession } from "../drawing/session";
 import { StrokeCanvas } from "../drawing/StrokeCanvas";
-import { NOTE_COLORS, NOTE_FIXES, NOTE_SHAPES, NoteView } from "../page/ObjectViews";
+import { NOTE_COLORS, NOTE_FIXES, NOTE_SHAPES, NoteView, TAPE_COLORS, TAPE_PATTERNS, tapeFill } from "../page/ObjectViews";
+import { ColorDots } from "../shell/ColorDots";
 import { Sheet } from "../shell/Sheet";
 
 const PREVIEW_W = 200;
@@ -15,8 +16,10 @@ function NoteInk({
   onChange: (strokes: Stroke[]) => void;
 }) {
   const liveRef = useRef<HTMLCanvasElement>(null);
-  const live = useRef<LiveInk | null>(null);
+  const live = useRef<StrokeSession | null>(null);
   const [eraser, setEraser] = useState(false);
+  const [penSize, setPenSize] = useState(4);
+  const [eraserSize, setEraserSize] = useState(18);
   const h = (NOTE_BASE * note.h) / note.w;
   const k = 260 / NOTE_BASE;
   const dpr = typeof window === "undefined" ? 1 : Math.min(window.devicePixelRatio || 1, 2);
@@ -41,27 +44,38 @@ function NoteInk({
         onPointerDown={(e) => {
           (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
           if (!liveRef.current) return;
-          live.current = new LiveInk(liveRef.current, k * dpr, {
-            tool: eraser ? "eraser" : "pen",
-            color: "#2f2a25",
-            width: eraser ? 18 : 4,
-            opacity: 1,
-          });
+          live.current = new StrokeSession(
+            liveRef.current,
+            k * dpr,
+            {
+              erase: eraser,
+              brush: "pen",
+              color: "#2f2a25",
+              width: eraser ? eraserSize : penSize,
+              opacity: 1,
+              stabilizer: "medium",
+              smooth: "off",
+              holdToPerfect: false,
+              eraseColor: note.color,
+            },
+            { unitsPerPx: 1 / k },
+          );
           const p = toLocal(e);
-          live.current.add(p.x, p.y);
+          live.current.add(p.x, p.y, e.timeStamp, e.pressure, e.pointerType);
         }}
         onPointerMove={(e) => {
           if (!live.current) return;
           const p = toLocal(e);
-          live.current.add(p.x, p.y);
+          live.current.add(p.x, p.y, e.timeStamp, e.pressure, e.pointerType);
         }}
-        onPointerUp={() => {
-          const s = live.current?.finish();
+        onPointerUp={(e) => {
+          const p = toLocal(e);
+          const r = live.current?.finish(p.x, p.y);
           live.current = null;
-          if (s) onChange([...note.strokes, s]);
+          if (r?.kind === "freehand") onChange([...note.strokes, r.stroke]);
         }}
         onPointerCancel={() => {
-          live.current?.clear();
+          live.current?.cancel();
           live.current = null;
         }}
       >
@@ -89,6 +103,18 @@ function NoteInk({
           Clear
         </button>
       </div>
+      <label className="slider-row">
+        <span className="slider-text">{eraser ? "Eraser size" : "Pen size"}</span>
+        <input
+          type="range"
+          min={1}
+          max={eraser ? 60 : 30}
+          value={eraser ? eraserSize : penSize}
+          aria-label={eraser ? "Eraser size" : "Pen size"}
+          onChange={(e) => (eraser ? setEraserSize : setPenSize)(Number(e.target.value))}
+        />
+        <span className="slider-value">{eraser ? eraserSize : penSize}</span>
+      </label>
     </div>
   );
 }
@@ -106,7 +132,6 @@ export function NotePanel({
 }) {
   const [note, setNote] = useState<NoteObject | null>(initial);
   const [tab, setTab] = useState<"text" | "ink">("text");
-  const [swayKey, setSwayKey] = useState(0);
 
   useEffect(() => {
     if (open) {
@@ -120,6 +145,7 @@ export function NotePanel({
   }
   const patch = (p: Partial<NoteObject>) => setNote({ ...note, ...p });
   const k = PREVIEW_W / note.w;
+  const tapeLabel = TAPE_PATTERNS.find((t) => t.id === note.tapePattern)?.label ?? "Original";
 
   return (
     <Sheet
@@ -138,40 +164,25 @@ export function NotePanel({
         </div>
       }
     >
-      <div className="row" style={{ alignItems: "flex-start", gap: 14, marginBottom: 12 }}>
-        <div
-          style={{
-            position: "relative",
-            width: PREVIEW_W + 20,
-            height: note.h * k + 30,
-            background: "#fffdf8",
-            borderRadius: 8,
-            boxShadow: "inset 0 0 0 1px var(--line)",
-            flex: "0 0 auto",
-          }}
-        >
+      <div className="note-preview">
+        <div style={{ position: "relative", width: PREVIEW_W, height: note.h * k }}>
           <div
             style={{
               position: "absolute",
-              left: 10,
-              top: 18,
+              left: 0,
+              top: 0,
               width: note.w,
               height: note.h,
               transform: `scale(${k})`,
               transformOrigin: "0 0",
             }}
           >
-            <NoteView o={note} swayKey={swayKey} still={false} pixelScale={k} />
+            <NoteView o={note} swayKey={0} still pixelScale={k} />
           </div>
-        </div>
-        <div style={{ flex: 1 }}>
-          <button type="button" className="btn btn-sm" onClick={() => setSwayKey((n) => n + 1)}>
-            Preview sway
-          </button>
-          <p className="muted small">The anchor stays put while loose edges sway and settle. Paused while editing or dragging.</p>
         </div>
       </div>
 
+      <div className="section-title">Text</div>
       <div className="tabs" style={{ marginBottom: 10 }}>
         <button type="button" className={`tab${tab === "text" ? " is-active" : ""}`} onClick={() => setTab("text")}>
           Typing
@@ -198,18 +209,7 @@ export function NotePanel({
       )}
 
       <div className="section-title">Paper color</div>
-      <div className="row-wrap">
-        {NOTE_COLORS.map((c) => (
-          <button
-            key={c.id}
-            type="button"
-            className={`swatch${note.color === c.id ? " is-active" : ""}`}
-            style={{ background: c.id }}
-            aria-label={c.label}
-            onClick={() => patch({ color: c.id })}
-          />
-        ))}
-      </div>
+      <ColorDots colors={NOTE_COLORS.map((c) => ({ value: c.id, label: c.label }))} value={note.color} onChange={(color) => patch({ color })} />
       <div className="section-title">Shape</div>
       <div className="row-wrap">
         {NOTE_SHAPES.map((s) => (
@@ -231,6 +231,35 @@ export function NotePanel({
           </button>
         ))}
       </div>
+      {note.fix === "tape" ? (
+        <>
+          <div className="section-title row-between">
+            <span>Tape pattern</span>
+            <span className="muted small">{tapeLabel}</span>
+          </div>
+          <div className="tape-grid">
+            {TAPE_PATTERNS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                className={`tape-cell${note.tapePattern === t.id ? " is-active" : ""}`}
+                aria-label={t.label}
+                aria-pressed={note.tapePattern === t.id}
+                onClick={() => patch({ tapePattern: t.id, tapeColor: note.tapeColor ?? TAPE_COLORS[0] })}
+              >
+                <i style={{ background: tapeFill(t.id, note.tapeColor) }} />
+                <span>{t.label}</span>
+              </button>
+            ))}
+          </div>
+          <div className="section-title">Tape color</div>
+          <ColorDots
+            colors={TAPE_COLORS.map((c) => ({ value: c, label: c }))}
+            value={note.tapePattern ? note.tapeColor ?? TAPE_COLORS[0] : ""}
+            onChange={(tapeColor) => patch({ tapeColor, tapePattern: note.tapePattern ?? "solid" })}
+          />
+        </>
+      ) : null}
       <div className="section-title">Anchor and sway</div>
       <label className="small">
         Horizontal {Math.round(note.anchor.x * 100)}%

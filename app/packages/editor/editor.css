@@ -103,7 +103,7 @@
 }
 
 .tool-btn:focus-visible {
-  box-shadow: 0 0 0 3px rgb(161 161 170 / 0.5);
+  box-shadow: var(--ring-sel);
 }
 
 .tool-btn:disabled {
@@ -193,4 +193,35 @@
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--ink-soft);
+}
+
+/* Handwriting toolbar (v2, shared with the studio Sketch tools). */
+.ink-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 8px 8px calc(10px + env(safe-area-inset-bottom));
+}
+
+.ink-bar .st-tool,
+.ink-bar .studio-tools.is-tight .st-tool {
+  width: 40px;
+}
+
+.ink-bar .btn {
+  flex: 0 0 auto;
+}
+
+.ink-sel-actions {
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  transform: translateX(-50%);
+  z-index: 50;
+  display: flex;
+  background: var(--background);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-float);
 }

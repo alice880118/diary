@@ -5,7 +5,7 @@ import { useLive } from "~/packages/db/events";
 import { formatTimestamp } from "~/packages/db/id";
 import { describeError } from "~/packages/db/idb";
 import { collectGarbage, getSettings, updateSettings } from "~/packages/db/repo";
-import type { MotionPref } from "~/packages/db/types";
+import { SCHEMA_VERSION, type MotionPref } from "~/packages/db/types";
 import { Icon } from "~/packages/shell/Icon";
 import { AppHeader, BackButton, Screen } from "~/packages/shell/Layout";
 import { Sheet } from "~/packages/shell/Sheet";
@@ -135,11 +135,11 @@ export default function Settings() {
 
       <div className="section-title">Backup & restore</div>
       <p className="small" style={{ marginTop: 0 }}>Last backup: {last ? formatTimestamp(last) : "Never"}</p>
-      <div className="row" style={{ gap: 10, marginBottom: 8 }}>
-        <button type="button" className="btn btn-primary" style={{ flex: 1 }} disabled={exporting !== null} onClick={() => void doExport()}>
+      <div className="row" style={{ gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
+        <button type="button" className="btn btn-primary" style={{ flex: "1 1 150px" }} disabled={exporting !== null} onClick={() => void doExport()}>
           <Icon name="download" size={18} /> {exporting !== null ? `Exporting ${Math.round(exporting * 100)}%` : "Export backup"}
         </button>
-        <button type="button" className="btn" style={{ flex: 1 }} disabled={reading} onClick={() => void doRead()}>
+        <button type="button" className="btn" style={{ flex: "1 1 150px" }} disabled={reading} onClick={() => void doRead()}>
           <Icon name="refresh" size={18} /> {reading ? "Checking…" : "Restore from backup"}
         </button>
       </div>
@@ -202,7 +202,7 @@ export default function Settings() {
         <Icon name="chevronRight" size={18} />
       </Link>
 
-      <p className="muted small" style={{ marginTop: 24, textAlign: "center" }}>Paper Collage Diary · Data format v{settings.data?.schemaVersion ?? 1}</p>
+      <p className="muted small" style={{ marginTop: 24, textAlign: "center" }}>Paper Collage Diary · Data format v{SCHEMA_VERSION}</p>
 
       <Sheet
         open={plan !== null}

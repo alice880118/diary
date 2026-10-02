@@ -1,4 +1,11 @@
-export const SCHEMA_VERSION = 1;
+/**
+ * Bumped when records can carry fields an older app would render wrongly.
+ * v2: note tape pattern/color, link sticker/tag display, paper texture scale.
+ * All v2 fields are optional; readers fall back to the v1 look when absent.
+ * v3: textured brushes, per-point pressure, editable shapes on strokes.
+ * Older apps draw unknown brushes as a pen and shapes from their outline points.
+ */
+export const SCHEMA_VERSION = 3;
 
 export const PAGE_W = 900;
 export const PAGE_H = 1200;
@@ -8,7 +15,41 @@ export const ART_H = 1024;
 
 export type PageStyle = "lined" | "blank" | "dot" | "grid" | "dated";
 
-export type BrushKind = "pen" | "marker" | "pencil";
+export type BrushKind = "pen" | "marker" | "pencil" | "crayon" | "chalk" | "pastel" | "dryBrush";
+
+export type ShapeType =
+  | "rect"
+  | "roundRect"
+  | "circle"
+  | "ellipse"
+  | "triangle"
+  | "diamond"
+  | "pentagon"
+  | "hexagon"
+  | "star"
+  | "line"
+  | "arrow"
+  | "arc";
+
+/**
+ * Editable geometry, in the owning surface coordinates. Every shape is a box
+ * (center, size, rotation in degrees); a line/arrow runs along the box's
+ * horizontal center line, an arc is a slice of the box's ellipse.
+ */
+export interface ShapeGeom {
+  type: ShapeType;
+  cx: number;
+  cy: number;
+  w: number;
+  h: number;
+  rot: number;
+  /** Arc only: start angle and signed sweep, radians, in the unrotated box frame. */
+  start?: number;
+  sweep?: number;
+}
+
+/** Room for texture / pattern / riso fills later without changing the shape. */
+export type FillStyle = { kind: "none" } | { kind: "solid"; color: string };
 
 export interface Stroke {
   id: string;
@@ -17,8 +58,23 @@ export interface Stroke {
   color: string;
   width: number;
   opacity: number;
-  /** Flat list: x0, y0, x1, y1, ... in the owning surface coordinates. */
+  /**
+   * Flat list: x0, y0, x1, y1, ... in the owning surface coordinates.
+   * For shapes this is a sampled outline, kept so older app versions can
+   * still draw them; the shape itself is the source of truth.
+   */
   points: number[];
+  /** Texture seed; absent on older strokes (derived from id). */
+  seed?: number;
+  /** Per-point pressure 0..1 (same count as points/2); absent = constant. */
+  pressure?: number[];
+  /** Texture strength 0..1 for textured brushes; absent = brush default. */
+  texture?: number;
+  /** Present when this stroke is an editable shape (drawn or recognized). */
+  shape?: ShapeGeom;
+  fill?: FillStyle;
+  /** Shape outline on/off; absent = on. */
+  outline?: boolean;
 }
 
 export interface Notebook {
@@ -82,6 +138,18 @@ export interface StickerObject extends ObjectBase {
 export type NoteFix = "tape" | "pin" | "top";
 export type NoteShape = "square" | "rounded" | "torn" | "cloud";
 
+export type TapePattern =
+  | "solid"
+  | "stripe"
+  | "diagonal"
+  | "dots"
+  | "gingham"
+  | "grid"
+  | "wave"
+  | "stars"
+  | "hearts"
+  | "floral";
+
 export const NOTE_BASE = 300;
 
 export interface NoteObject extends ObjectBase {
@@ -97,6 +165,9 @@ export interface NoteObject extends ObjectBase {
   anchor: { x: number; y: number };
   /** Sway strength 0..1 for the free edge. */
   sway: number;
+  /** Tape look when fix is "tape". Absent = the original peach diagonal tape. */
+  tapePattern?: TapePattern;
+  tapeColor?: string;
 }
 
 export interface LinkMeta {
@@ -107,12 +178,19 @@ export interface LinkMeta {
   fetchedAt?: number;
 }
 
+/** "card" / "text" are the v1 looks and stay valid for existing links. */
+export type LinkDisplay = "card" | "text" | "sticker" | "tag";
+export type LinkShape = "circle" | "square" | "triangle" | "hexagon" | "star";
+
 export interface LinkObject extends ObjectBase {
   type: "link";
   url: string;
   title: string;
-  display: "text" | "card";
+  display: LinkDisplay;
   meta: LinkMeta | null;
+  /** Sticker display only; absent = circle / default color. */
+  shape?: LinkShape;
+  color?: string;
 }
 
 export type PageObject =
@@ -216,7 +294,8 @@ export interface Artwork {
   w: number;
   h: number;
   layers: ArtLayer[];
-  texture: { id: string; strength: number };
+  /** scale: texture size multiplier (1 = 100%); absent on v1 artworks = 1. */
+  texture: { id: string; strength: number; scale?: number };
   print: { enabled: boolean; layers: PrintLayer[] };
   sticker: StickerSettings;
   stickerId: string | null;

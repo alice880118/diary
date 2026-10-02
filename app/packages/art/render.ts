@@ -1,7 +1,7 @@
 import { ART_H, ART_W, type Artwork, type ImageLayer, type PrintLayer } from "../db/types";
 import { drawStrokes } from "../drawing/strokes";
 import { fbm, smoothstep, valueNoise } from "../textures/noise";
-import { shadeTexture, textureHeight } from "../textures/render";
+import { shadeTexture, textureHeight, textureScaleOf } from "../textures/render";
 import { createCanvas, ctx2d, maskHasContent, type ArtRuntime } from "./runtime";
 
 /** Image layer after mask and crop, drawn into artwork space. */
@@ -64,7 +64,7 @@ function hexToRgb(hex: string): [number, number, number] {
 
 interface FactorEntry {
   key: string;
-  data: Float32Array;
+  data: Uint8Array;
 }
 const factorCache: FactorEntry[] = [];
 
@@ -73,14 +73,15 @@ const factorCache: FactorEntry[] = [];
  * Sampled in artwork units with the layer's fixed seed, so preview and
  * export at any scale produce the same pattern.
  */
-function inkFactor(p: PrintLayer, textureId: string, w: number, h: number, scale: number) {
-  const key = `${p.seed}|${p.grain}|${p.unevenness}|${p.paperShow}|${textureId}|${w}|${scale}`;
+function inkFactor(p: PrintLayer, textureId: string, texScale: number, w: number, h: number, scale: number) {
+  const key = `${p.seed}|${p.grain}|${p.unevenness}|${p.paperShow}|${textureId}|${texScale}|${w}|${scale}`;
   const hit = factorCache.find((e) => e.key === key);
   if (hit) return hit.data;
   const speck = valueNoise(p.seed);
   const uneven = valueNoise(p.seed + 1);
-  const height = p.paperShow > 0 ? textureHeight(textureId, w, h, scale) : null;
-  const out = new Float32Array(w * h);
+  const height = p.paperShow > 0 ? textureHeight(textureId, w, h, scale * texScale) : null;
+  // Quantized to bytes: a quarter of the memory, so 16 inks fit in the cache.
+  const out = new Uint8Array(w * h);
   for (let y = 0; y < h; y++) {
     const v = y / scale;
     for (let x = 0; x < w; x++) {
@@ -96,11 +97,11 @@ function inkFactor(p: PrintLayer, textureId: string, w: number, h: number, scale
       if (height) {
         f *= 1 - p.paperShow * 0.8 * (1 - height[i]);
       }
-      out[i] = f;
+      out[i] = Math.round(Math.max(0, Math.min(1, f)) * 255);
     }
   }
   factorCache.unshift({ key, data: out });
-  if (factorCache.length > 8) factorCache.pop();
+  if (factorCache.length > 16) factorCache.pop();
   return out;
 }
 
@@ -127,15 +128,15 @@ export function inkPlanes(art: Artwork, rt: ArtRuntime, scale: number, only?: st
   for (const p of art.print.layers) {
     if (only ? p.id !== only : !p.visible) continue;
     const mask = rt.printMasks.get(p.id);
-    if (!mask) continue;
+    if (!mask || !maskHasContent(mask)) continue;
     t.clearRect(0, 0, w, h);
     t.imageSmoothingEnabled = true;
     t.drawImage(mask, p.offset.dx * scale, p.offset.dy * scale, w, h);
     const md = t.getImageData(0, 0, w, h).data;
-    const f = inkFactor(p, art.texture.id, w, h, scale);
+    const f = inkFactor(p, art.texture.id, textureScaleOf(art.texture), w, h, scale);
     const alpha = new Float32Array(w * h);
     for (let i = 0; i < alpha.length; i++) {
-      alpha[i] = (md[i * 4 + 3] / 255) * p.density * f[i];
+      alpha[i] = (md[i * 4 + 3] / 255) * p.density * (f[i] / 255);
     }
     planes.push({ layer: p, alpha, rgb: hexToRgb(p.color) });
   }
@@ -189,10 +190,11 @@ const paperCache: { key: string; img: ImageData }[] = [];
 export function renderPaper(art: Artwork, scale = 1) {
   const w = Math.round(ART_W * scale);
   const h = Math.round(ART_H * scale);
-  const key = `${art.texture.id}|${art.texture.strength}|${scale}`;
+  const texScale = textureScaleOf(art.texture);
+  const key = `${art.texture.id}|${art.texture.strength}|${texScale}|${scale}`;
   const hit = paperCache.find((e) => e.key === key);
   if (hit) return hit.img;
-  const img = shadeTexture(art.texture.id, art.texture.strength, w, h, scale);
+  const img = shadeTexture(art.texture.id, art.texture.strength, w, h, scale * texScale);
   paperCache.unshift({ key, img });
   if (paperCache.length > 3) paperCache.pop();
   return img;

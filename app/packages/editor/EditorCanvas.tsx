@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { PAGE_H, PAGE_W, type Page, type PageObject, type Stroke } from "../db/types";
-import { LiveInk } from "../drawing/liveInk";
-import type { PenState } from "../drawing/PenPanel";
+import type { Box } from "../drawing/geometry";
+import { dragBox as nextBox, duplicateStroke, pickStroke, strokeBox, transformStroke } from "../drawing/objectOps";
+import { ShapeDrag, StrokeSession, type InkConfig, type SessionResult, type ShapeStyle } from "../drawing/session";
+import { TransformBox, type BoxOp, type DragPhase } from "../drawing/TransformBox";
+import { Icon } from "../shell/Icon";
 import { StrokeCanvas } from "../drawing/StrokeCanvas";
 import { strokeBounds, translateStroke } from "../drawing/strokes";
 import { ObjectBody, objectFrameStyle } from "../page/ObjectViews";
@@ -16,7 +19,14 @@ export type EditMode = "layout" | "ink";
 interface Props {
   page: Page;
   mode: EditMode;
-  pen: PenState;
+  /** Ink settings in handwriting mode; null with `inkSelect` for the stroke selector. */
+  ink: InkConfig | null;
+  inkSelect: boolean;
+  /** Shape tool style in handwriting mode, or null. */
+  shapeStyle?: ShapeStyle | null;
+  /** Selected handwriting object (stroke or shape). */
+  inkSel?: string | null;
+  onInkSel?: (id: string | null) => void;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onCommit: (fn: (p: Page) => Page) => void;
@@ -46,6 +56,7 @@ type Gesture =
     }
   | { kind: "handle"; id: string; orig: PageObject; a0: number; d0: number }
   | { kind: "ink" }
+  | { kind: "shapeDrag" }
   | { kind: "rect"; x0: number; y0: number; x1: number; y1: number }
   | { kind: "moveSel"; sx: number; sy: number; dx: number; dy: number };
 
@@ -62,7 +73,7 @@ interface PeelAnim {
 const MAX_BACKING = 1400;
 
 export function EditorCanvas(props: Props) {
-  const { page, mode, pen, selectedId, onSelect, onCommit, onTransient, onEditObject, reduceMotion, focusId, bottomInset } = props;
+  const { page, mode, ink: inkCfg, inkSelect, shapeStyle, inkSel = null, onInkSel, selectedId, onSelect, onCommit, onTransient, onEditObject, reduceMotion, focusId, bottomInset } = props;
   const hostRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const liveRef = useRef<HTMLCanvasElement>(null);
@@ -70,7 +81,10 @@ export function EditorCanvas(props: Props) {
   const [view, setView] = useState({ z: 1, x: 0, y: 0 });
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<Gesture>({ kind: "none" });
-  const live = useRef<LiveInk | null>(null);
+  const live = useRef<StrokeSession | null>(null);
+  const shapeDrag = useRef<ShapeDrag | null>(null);
+  const objDrag = useRef<{ orig: Stroke; box: Box; recorded: boolean } | null>(null);
+  const [dragBoxState, setDragBoxState] = useState<Box | null>(null);
   type DragState = { id: string; obj: PageObject; ox: number; oy: number } | null;
   const [drag, setDragState] = useState<DragState>(null);
   const dragRef = useRef<DragState>(null);
@@ -254,8 +268,12 @@ export function EditorCanvas(props: Props) {
   const cancelSingle = () => {
     const g = gesture.current;
     if (g.kind === "ink") {
-      live.current?.clear();
+      live.current?.cancel();
       live.current = null;
+    }
+    if (g.kind === "shapeDrag") {
+      shapeDrag.current?.cancel();
+      shapeDrag.current = null;
     }
     if (g.kind === "obj" || g.kind === "handle") {
       setDrag(null);
@@ -266,6 +284,15 @@ export function EditorCanvas(props: Props) {
   };
 
   /* ---------- pointer handling ---------- */
+
+  /** Corrections take two history steps, so Undo first returns to the raw freehand. */
+  const commitInk = (r: SessionResult) => {
+    if (!r) return;
+    const first = r.kind === "freehand" ? r.stroke : r.raw;
+    onCommit((p) => ({ ...p, ink: [...p.ink, first] }));
+    const second = r.kind === "freehand" ? r.smoothed : r.shape;
+    if (second) onCommit((p) => ({ ...p, ink: p.ink.map((st) => (st.id === first.id ? second : st)) }));
+  };
 
   const onPointerDown = (e: React.PointerEvent) => {
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -289,11 +316,24 @@ export function EditorCanvas(props: Props) {
     const target = e.target as HTMLElement;
 
     if (mode === "ink") {
-      if (pen.tool === "select") {
+      if (shapeStyle) {
+        const c = liveRef.current;
+        if (!c) return;
+        shapeDrag.current = new ShapeDrag(c, backing, shapeStyle, pt.x, pt.y);
+        gesture.current = { kind: "shapeDrag" };
+        return;
+      }
+      if (inkSelect || !inkCfg) {
         const b = selectedStrokeBounds();
+        const hit = b ? null : pickStroke(page.ink, pt.x, pt.y, 10 / s);
         if (b && pt.x >= b.minX && pt.x <= b.maxX && pt.y >= b.minY && pt.y <= b.maxY) {
           gesture.current = { kind: "moveSel", sx: pt.x, sy: pt.y, dx: 0, dy: 0 };
+        } else if (hit) {
+          setSelStrokes(new Set());
+          onInkSel?.(hit.id);
+          gesture.current = { kind: "none" };
         } else {
+          onInkSel?.(null);
           setSelStrokes(new Set());
           gesture.current = { kind: "rect", x0: pt.x, y0: pt.y, x1: pt.x, y1: pt.y };
           setRect({ x0: pt.x, y0: pt.y, x1: pt.x, y1: pt.y });
@@ -302,8 +342,8 @@ export function EditorCanvas(props: Props) {
       }
       const c = liveRef.current;
       if (!c) return;
-      live.current = new LiveInk(c, backing, pen);
-      live.current.add(pt.x, pt.y);
+      live.current = new StrokeSession(c, backing, inkCfg, { unitsPerPx: 1 / s });
+      live.current.add(pt.x, pt.y, e.timeStamp, e.pressure, e.pointerType);
       gesture.current = { kind: "ink" };
       return;
     }
@@ -367,11 +407,16 @@ export function EditorCanvas(props: Props) {
     }
     const events =
       typeof e.nativeEvent.getCoalescedEvents === "function" ? e.nativeEvent.getCoalescedEvents() : [];
+    if (g.kind === "shapeDrag") {
+      const pt = toPage(e.clientX, e.clientY);
+      shapeDrag.current?.move(pt.x, pt.y);
+      return;
+    }
     if (g.kind === "ink") {
       const list = events.length ? events : [e.nativeEvent];
       for (const ev of list) {
         const pt = toPage(ev.clientX, ev.clientY);
-        live.current?.add(pt.x, pt.y);
+        live.current?.add(pt.x, pt.y, ev.timeStamp, ev.pressure, ev.pointerType);
       }
       return;
     }
@@ -433,12 +478,26 @@ export function EditorCanvas(props: Props) {
     gesture.current = { kind: "none" };
     const cancelled = e.type === "pointercancel";
 
-    if (g.kind === "ink") {
-      const stroke = live.current?.finish() ?? null;
-      live.current = null;
-      if (stroke && !cancelled) {
-        onCommit((p) => ({ ...p, ink: [...p.ink, stroke] }));
+    if (g.kind === "shapeDrag") {
+      const d = shapeDrag.current;
+      shapeDrag.current = null;
+      const st = d?.finish() ?? null;
+      if (st && !cancelled) {
+        onCommit((p) => ({ ...p, ink: [...p.ink, st] }));
+        onInkSel?.(st.id);
       }
+      return;
+    }
+    if (g.kind === "ink") {
+      const session = live.current;
+      live.current = null;
+      if (!session) return;
+      if (cancelled) {
+        session.cancel();
+        return;
+      }
+      const end = toPage(e.clientX, e.clientY);
+      commitInk(session.finish(end.x, end.y));
       return;
     }
     if (g.kind === "rect") {
@@ -513,6 +572,34 @@ export function EditorCanvas(props: Props) {
           onSelect(hits[(idx + 1) % hits.length].id);
         }
       }, 320);
+    }
+  };
+
+  /* ---------- handwriting object selection ---------- */
+
+  const inkSelStroke = mode === "ink" && inkSel ? page.ink.find((st) => st.id === inkSel) ?? null : null;
+  const inkSelBox = inkSelStroke ? (dragBoxState && objDrag.current?.orig.id === inkSelStroke.id ? dragBoxState : strokeBox(inkSelStroke)) : null;
+
+  const dragInkSel = (op: BoxOp, phase: DragPhase, p: { x: number; y: number }, start: { x: number; y: number }) => {
+    if (!inkSelStroke || !inkSelBox) return;
+    if (phase === "start") {
+      objDrag.current = { orig: inkSelStroke, box: inkSelBox, recorded: false };
+      return;
+    }
+    const d = objDrag.current;
+    if (!d) return;
+    const nb = nextBox(d.box, op, p, start);
+    const next = transformStroke(d.orig, d.box, nb);
+    const fn = (pg: Page) => ({ ...pg, ink: pg.ink.map((st) => (st.id === next.id ? next : st)) });
+    // One undo step per drag: the first change records, the rest are transient.
+    if (!d.recorded) {
+      onCommit(fn);
+      d.recorded = true;
+    } else onTransient(fn);
+    setDragBoxState(d.orig.shape ? null : nb);
+    if (phase === "end") {
+      objDrag.current = null;
+      setDragBoxState(null);
     }
   };
 
@@ -593,7 +680,7 @@ export function EditorCanvas(props: Props) {
               style={{
                 ...objectFrameStyle(sel),
                 zIndex: 10002,
-                outline: `${2 / s}px ${sel.locked ? "dashed" : "solid"} ${sel.locked ? "#8a7b68" : "#3868b8"}`,
+                outline: `${2 / s}px ${sel.locked ? "dashed" : "solid"} ${sel.locked ? "#8a7b68" : "#1b1b1b"}`,
                 outlineOffset: 4 / s,
               }}
             >
@@ -616,6 +703,9 @@ export function EditorCanvas(props: Props) {
               {isOffPage(sel) ? <div className="sel-lock" style={{ fontSize: 14 / s, top: -26 / s }}>Off page</div> : null}
             </div>
           ) : null}
+          {inkSelBox ? (
+            <TransformBox box={inkSelBox} unit={1} zoom={s} toSurface={toPage} onDrag={dragInkSel} z={10004} />
+          ) : null}
           {rect ? (
             <div
               style={{
@@ -624,7 +714,7 @@ export function EditorCanvas(props: Props) {
                 top: Math.min(rect.y0, rect.y1),
                 width: Math.abs(rect.x1 - rect.x0),
                 height: Math.abs(rect.y1 - rect.y0),
-                border: `${2 / s}px dashed #3868b8`,
+                border: `${2 / s}px dashed #1b1b1b`,
                 background: "rgba(56,104,184,0.06)",
                 zIndex: 10003,
               }}
@@ -645,6 +735,35 @@ export function EditorCanvas(props: Props) {
           ) : null}
         </div>
       </div>
+      {inkSelStroke ? (
+        <div className="float-group ink-sel-actions" role="toolbar" aria-label="Selection" onPointerDown={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Duplicate"
+            onClick={() => {
+              const copy = duplicateStroke(inkSelStroke);
+              onCommit((pg) => ({ ...pg, ink: [...pg.ink, copy] }));
+              onInkSel?.(copy.id);
+            }}
+          >
+            <Icon name="copy" />
+          </button>
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Delete"
+            style={{ color: "var(--destructive)" }}
+            onClick={() => {
+              const id = inkSelStroke.id;
+              onCommit((pg) => ({ ...pg, ink: pg.ink.filter((st) => st.id !== id) }));
+              onInkSel?.(null);
+            }}
+          >
+            <Icon name="trash" />
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

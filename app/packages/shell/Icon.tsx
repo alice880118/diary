@@ -1,5 +1,40 @@
 import type { CSSProperties } from "react";
 
+/** v2 icons that need several shapes or fills (24 grid, stroke 1.8). */
+const RICH: Record<string, string> = {
+  marker: '<path d="M9 15l-4 4h5l2-2"/><path d="M9 15l8.5-8.5a2.1 2.1 0 013 3L12 18z"/>',
+  pencil: '<path d="M4 20l2-6L16 4l4 4L10 18z"/><path d="M6 14l4 4"/>',
+  eraser2: '<path d="M8 20h12"/><path d="M4.5 14.5l9-9a2 2 0 012.8 0l3.2 3.2a2 2 0 010 2.8L12 19H8z"/><path d="M9 10l5 5"/>',
+  pen2: '<path d="M4 20l1-5L15.5 4.5a2.1 2.1 0 013 3L8 18z"/><path d="M13.5 6.5l3 3"/>',
+  size: '<circle cx="12" cy="12" r="3" fill="currentColor"/><circle cx="12" cy="12" r="8"/>',
+  opacity: '<circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 010 16z" fill="currentColor"/>',
+  grip: '<path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01" stroke-width="3"/>',
+  chev: '<path d="M6 9l6 6 6-6"/>',
+  image2: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M21 16l-5-5-9 9"/>',
+  sliders: '<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>',
+  wand: '<path d="M4 20L15 9"/><path d="M15 4v2M15 12v2M19 8h2M9 8h2M18 5l-1.5 1.5M18 11l-1.5-1.5"/>',
+  lassoAdd: '<path d="M14 16c-4 0-9-2-9-6s4-6 8-6 7 2 7 5"/><path d="M8 15c-1 2 0 4 2 4"/><path d="M18 13v6M15 16h6"/>',
+  lassoSub: '<path d="M14 16c-4 0-9-2-9-6s4-6 8-6 7 2 7 5"/><path d="M8 15c-1 2 0 4 2 4"/><path d="M15 16h6"/>',
+  viewComposite: '<circle cx="9" cy="10" r="5"/><circle cx="15" cy="10" r="5"/><circle cx="12" cy="15" r="5"/>',
+  viewSingle: '<circle cx="12" cy="12" r="6"/>',
+  viewMask: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 20L20 4"/><path d="M12 20L20 12M4 12l8-8"/>',
+  dice: '<rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="9" r=".8" fill="currentColor"/><circle cx="15" cy="15" r=".8" fill="currentColor"/><circle cx="15" cy="9" r=".8" fill="currentColor"/><circle cx="9" cy="15" r=".8" fill="currentColor"/>',
+  reset: '<path d="M4 12a8 8 0 108-8 8 8 0 00-6 2.7"/><path d="M4 4v4h4"/>',
+  scissors2: '<circle cx="6" cy="7" r="2.5"/><circle cx="6" cy="17" r="2.5"/><path d="M8 8.5L20 18M8 15.5L20 6"/>',
+  sparkle: '<path d="M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2z"/>',
+  sheetPaper: '<path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/>',
+  material: '<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M8 16l8-8M12 16l4-4"/>',
+  cropRect: '<rect x="4" y="6" width="16" height="12" rx="1"/>',
+  cropCircle: '<circle cx="12" cy="12" r="8"/>',
+  cropContour: '<path d="M7 5c4-2 6 2 9 1s4 3 2 6 1 6-3 7-5-2-8-1-4-3-2-6-2-5 2-7z"/>',
+  cropLasso: '<path d="M14 16c-4 0-9-2-9-6s4-6 8-6 7 2 7 5-3 7-6 7"/><path d="M8 15c-1 2 0 4 2 4"/>',
+  layerArea: '<path d="M12 3l9 5-9 5-9-5z"/><path d="M8 16l4 2 4-2"/>',
+  clearArea: '<rect x="4" y="4" width="16" height="16" rx="2" stroke-dasharray="3 3"/><path d="M9 9l6 6M15 9l-6 6"/>',
+  palette2: '<path d="M12 3a9 9 0 100 18c1.5 0 2-1 2-2s-1-2 0-3 4 0 5-1 2-3 2-4a9 9 0 00-9-8z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7" r="1"/><circle cx="15" cy="7.5" r="1"/>',
+  gridAll: '<rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/>',
+  brush2: '<path d="M3 21c3 0 5-1 5-4a3 3 0 016 0"/><path d="M11 14L20 5"/>',
+};
+
 const PATHS: Record<string, string> = {
   back: "M15 5l-7 7 7 7",
   chevronLeft: "M15 5l-7 7 7 7",
@@ -49,7 +84,7 @@ const PATHS: Record<string, string> = {
   out: "M14 4h6v6M20 4l-8 8M10 5H4v15h15v-6",
 };
 
-export type IconName = keyof typeof PATHS;
+export type IconName = keyof typeof PATHS | keyof typeof RICH;
 
 export function Icon({
   name,
@@ -62,6 +97,7 @@ export function Icon({
   style?: CSSProperties;
   title?: string;
 }) {
+  const rich = RICH[name];
   const d = PATHS[name] ?? PATHS.more;
   return (
     <svg
@@ -78,7 +114,7 @@ export function Icon({
       role={title ? "img" : undefined}
     >
       {title ? <title>{title}</title> : null}
-      <path d={d} />
+      {rich ? <g dangerouslySetInnerHTML={{ __html: rich }} /> : <path d={d} />}
     </svg>
   );
 }

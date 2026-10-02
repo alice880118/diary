@@ -6,7 +6,9 @@ import {
   type LinkObject,
   type NoteObject,
   type PageObject,
+  type LinkShape,
   type StickerObject,
+  type TapePattern,
   type TextObject,
 } from "../db/types";
 import { StrokeCanvas } from "../drawing/StrokeCanvas";
@@ -123,6 +125,61 @@ export const NOTE_FIXES = [
   { id: "top", label: "Top edge" },
 ] as const;
 
+/** Original (v1) tape, used whenever a note has no tapePattern. */
+const LEGACY_TAPE =
+  "repeating-linear-gradient(45deg, rgba(245,205,160,0.78) 0 8px, rgba(250,225,190,0.78) 8px 16px)";
+
+export const TAPE_COLORS = ["#f3b48b", "#f2a7bd", "#f4d774", "#a8d8b9", "#9cc7ef", "#c3b1e6", "#d7b98e", "#bdbdbd"];
+
+export const TAPE_PATTERNS: { id: TapePattern; label: string }[] = [
+  { id: "solid", label: "Solid" },
+  { id: "stripe", label: "Stripe" },
+  { id: "diagonal", label: "Diagonal" },
+  { id: "dots", label: "Dots" },
+  { id: "gingham", label: "Gingham" },
+  { id: "grid", label: "Grid" },
+  { id: "wave", label: "Wave" },
+  { id: "stars", label: "Stars" },
+  { id: "hearts", label: "Hearts" },
+  { id: "floral", label: "Floral" },
+];
+
+/** Washi-tape fill: a light motif over the tape color (made translucent by the caller). */
+function tapeBackground(o: NoteObject): string {
+  return o.tapePattern ? tapeFill(o.tapePattern, o.tapeColor) : LEGACY_TAPE;
+}
+
+export function tapeFill(pattern: TapePattern, color?: string): string {
+  const base = color || TAPE_COLORS[0];
+  const m = "rgba(255,255,255,0.55)";
+  const glyph = (ch: string) =>
+    `url("data:image/svg+xml,${encodeURIComponent(
+      `<svg xmlns='http://www.w3.org/2000/svg' width='18' height='17'><text x='9' y='13' font-size='11' text-anchor='middle' fill='white' fill-opacity='0.7'>${ch}</text></svg>`,
+    )}") 0 0/18px 17px`;
+  switch (pattern) {
+    case "stripe":
+      return `repeating-linear-gradient(90deg, ${m} 0 5px, transparent 5px 12px), ${base}`;
+    case "diagonal":
+      return `repeating-linear-gradient(45deg, ${m} 0 6px, transparent 6px 14px), ${base}`;
+    case "dots":
+      return `radial-gradient(${m} 2.5px, transparent 3px) 0 0/12px 12px, ${base}`;
+    case "gingham":
+      return `repeating-linear-gradient(90deg, rgba(255,255,255,0.35) 0 7px, transparent 7px 14px), repeating-linear-gradient(0deg, rgba(255,255,255,0.35) 0 7px, transparent 7px 14px), ${base}`;
+    case "grid":
+      return `linear-gradient(${m} 1px, transparent 1px) 0 0/10px 10px, linear-gradient(90deg, ${m} 1px, transparent 1px) 0 0/10px 10px, ${base}`;
+    case "wave":
+      return `radial-gradient(circle at 50% 0, transparent 5px, ${m} 5.5px 7px, transparent 7.5px) 0 0/14px 10px, ${base}`;
+    case "stars":
+      return `${glyph("★")}, ${base}`;
+    case "hearts":
+      return `${glyph("♥")}, ${base}`;
+    case "floral":
+      return `${glyph("✿")}, ${base}`;
+    default:
+      return base;
+  }
+}
+
 function noteShapeStyle(o: NoteObject): CSSProperties {
   switch (o.shape) {
     case "rounded":
@@ -173,8 +230,8 @@ function Fixture({ o }: { o: NoteObject }) {
           width: 110,
           height: 34,
           transform: "rotate(-7deg)",
-          background:
-            "repeating-linear-gradient(45deg, rgba(245,205,160,0.78) 0 8px, rgba(250,225,190,0.78) 8px 16px)",
+          background: tapeBackground(o),
+          opacity: o.tapePattern ? 0.82 : undefined,
           boxShadow: "0 1px 2px rgba(0,0,0,0.12)",
           zIndex: 3,
           pointerEvents: "none",
@@ -282,8 +339,97 @@ export function linkHost(url: string): string {
   }
 }
 
+export const LINK_COLORS = ["#f08a6c", "#f2b84b", "#7cc29a", "#6aa4e8", "#a68be0", "#1b1b1b"];
+
+export const LINK_SHAPE_IDS: LinkShape[] = ["circle", "square", "triangle", "hexagon", "star"];
+
+const LINK_SHAPES: Record<LinkShape, (c: string) => ReactNode> = {
+  circle: (c) => <circle cx="32" cy="32" r="28" fill={c} />,
+  square: (c) => <rect x="5" y="5" width="54" height="54" rx="10" fill={c} />,
+  triangle: (c) => <path d="M32 4l29 52H3z" fill={c} stroke={c} strokeWidth="4" strokeLinejoin="round" />,
+  hexagon: (c) => <path d="M32 3l25 14.5v29L32 61 7 46.5v-29z" fill={c} stroke={c} strokeWidth="3" strokeLinejoin="round" />,
+  star: (c) => (
+    <path
+      d="M32 4l8.2 17.6 19.3 2.3-14.2 13.2 3.7 19.1L32 46.8 15 56.2l3.7-19.1L4.5 23.9l19.3-2.3z"
+      fill={c}
+      stroke={c}
+      strokeWidth="3"
+      strokeLinejoin="round"
+    />
+  ),
+};
+
+export function LinkSticker({
+  shape = "circle",
+  color,
+  label,
+  arrow = true,
+  style,
+}: {
+  shape?: LinkShape;
+  color?: string;
+  label?: string;
+  arrow?: boolean;
+  style?: CSSProperties;
+}) {
+  const draw = LINK_SHAPES[shape] ?? LINK_SHAPES.circle;
+  return (
+    <svg
+      viewBox="0 0 64 64"
+      role={label ? "img" : undefined}
+      aria-label={label}
+      aria-hidden={label ? undefined : true}
+      style={{ display: "block", filter: "drop-shadow(0 2px 3px rgba(0,0,0,0.15))", ...style }}
+    >
+      {draw(color || LINK_COLORS[0])}
+      {arrow ? (
+        <g transform={`translate(${shape === "triangle" ? "22 26" : "22 22"}) scale(.85)`} fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M7 17L17 7M9 7h8v8" />
+        </g>
+      ) : null}
+    </svg>
+  );
+}
+
 export function LinkView({ o }: { o: LinkObject }) {
   const title = o.title || o.meta?.siteTitle || linkHost(o.url);
+  if (o.display === "sticker") {
+    return (
+      <LinkSticker
+        shape={o.shape}
+        color={o.color}
+        label={title}
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+      />
+    );
+  }
+  if (o.display === "tag") {
+    return (
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          padding: "0 18px",
+          background: "#fff",
+          border: "2px solid #e3e3e0",
+          borderRadius: 999,
+          fontSize: 24,
+          color: "#1b1b1b",
+          overflow: "hidden",
+          whiteSpace: "nowrap",
+        }}
+      >
+        <span aria-hidden>🔗</span>
+        <span style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis" }}>{title}</span>
+        {title !== linkHost(o.url) ? (
+          <span style={{ color: "#7a7a7a", fontSize: 20, flex: "0 0 auto" }}>{linkHost(o.url)}</span>
+        ) : null}
+      </div>
+    );
+  }
   if (o.display === "text") {
     return (
       <div

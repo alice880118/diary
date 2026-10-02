@@ -130,11 +130,6 @@ export function StickerPreview({
           peel={peel}
         />
       </div>
-      {interactive ? (
-        <div className="muted small" style={{ position: "absolute", bottom: 6, left: 0, right: 0, textAlign: "center" }}>
-          Press and drag the sticker to see it peel and shine
-        </div>
-      ) : null}
     </div>
   );
 }
