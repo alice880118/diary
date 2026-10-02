@@ -4,7 +4,7 @@ import { useEffect } from "react";
 export default function Index() {
   const navigate = useNavigate();
   useEffect(() => {
-    navigate("/diary", { replace: true });
+    navigate("/home", { replace: true });
   }, [navigate]);
   return null;
 }

@@ -360,3 +360,42 @@ export interface AppSettings {
   onboarded: boolean;
   lastBackupAt: number | null;
 }
+
+/* ------------------------------------------------------------------ */
+/* Home board                                                          */
+/* ------------------------------------------------------------------ */
+
+/** Board surface in units; matches the Figma "IG / home" artboard (402 x 874). */
+export const BOARD_W = 402;
+export const BOARD_H = 874;
+
+export type BoardTexture = "smooth" | "grain" | "paper";
+
+export interface BoardItem {
+  id: string;
+  source: "preset" | "sticker";
+  /** Built-in sticker id when source is "preset". */
+  presetId?: string;
+  /** Rendered sticker version when source is "sticker" (library deletes don't affect it). */
+  snap?: StickerSnap;
+  /** Center and width as fractions of the board width (0..1). */
+  x: number;
+  y: number;
+  w: number;
+  /** Degrees, clockwise. */
+  rot: number;
+  z: number;
+}
+
+/**
+ * Stored in the settings store under key "home". Absent until the first
+ * edit; readers fill the default board.
+ */
+export interface HomeBoard {
+  key: "home";
+  background: { color: string; texture: BoardTexture; shapes: boolean };
+  items: BoardItem[];
+  /** Doodles in board units (BOARD_W wide), drawn beneath the stickers. */
+  strokes: Stroke[];
+  updatedAt: number;
+}

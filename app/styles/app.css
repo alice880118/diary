@@ -280,6 +280,27 @@ a {
   font-weight: 600;
 }
 
+/* Home: the nav floats over the board as a frosted fade instead of a white bar. */
+.bottom-nav.is-glass {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(to bottom, rgb(255 255 255 / 0), rgb(255 255 255 / 0.6) 66%);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  border-top: 0;
+}
+
+.bottom-nav.is-glass .bottom-nav-item {
+  color: #6b5f86;
+}
+
+.bottom-nav.is-glass .bottom-nav-item.is-active {
+  background: rgb(255 255 255 / 0.7);
+  color: var(--foreground);
+}
+
 /* ---------- Buttons ---------- */
 
 .btn,
@@ -905,6 +926,23 @@ input[type="color"] {
 
 .toast-success::before {
   background: var(--success);
+}
+
+.toast.has-action {
+  pointer-events: auto;
+  padding-right: 6px;
+}
+
+.toast-action {
+  border: 0;
+  background: rgb(255 255 255 / 0.16);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  border-radius: 99px;
+  padding: 4px 12px;
+  margin-left: 4px;
+  cursor: pointer;
 }
 
 /* ---------- Segmented control ---------- */

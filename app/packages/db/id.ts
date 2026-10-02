@@ -105,3 +105,10 @@ export function formatTimestamp(t: number, withTime = true): string {
     ...(withTime ? { hour: "numeric", minute: "2-digit" } : {}),
   });
 }
+
+/** "YYYY-MM-DD" to "Fri, Oct 2" / "10月2日（五）". */
+export function formatDayChip(date: string): string {
+  const [y, m, d] = date.split("-").map(Number);
+  if (isZh()) return `${m}月${d}日（${WEEKDAYS_ZH[new Date(y, m - 1, d).getDay()]}）`;
+  return `${weekdayOf(date).slice(0, 3)}, ${monthName(m, true)} ${d}`;
+}

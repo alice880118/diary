@@ -1,0 +1,246 @@
+/* Home sticker board — Figma "IG / home" (402 x 874), scaled to the frame width. */
+
+.home-screen {
+  background: #fedaff;
+}
+
+.board-scroll {
+  position: absolute;
+  inset: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.board-stage {
+  position: relative;
+  min-height: 100%;
+  overflow: hidden;
+}
+
+.board {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 402px;
+  height: 874px;
+  transform-origin: 0 0;
+  overflow: hidden;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.board.is-doodle {
+  touch-action: none;
+}
+
+.board-shape {
+  position: absolute;
+  display: block;
+  max-width: none;
+  pointer-events: none;
+  user-select: none;
+}
+
+.board-texture {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.board-item {
+  position: absolute;
+  transform-origin: center;
+  touch-action: none;
+  cursor: grab;
+}
+
+.board.is-doodle .board-item {
+  pointer-events: none;
+}
+
+.board-preset {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 1.5px 2px rgb(60 40 90 / 0.16));
+}
+
+.board-preset > svg {
+  display: block;
+  overflow: visible;
+}
+
+.board-preset.is-flat {
+  filter: none;
+}
+
+/* Small flat icons get their die-cut edge from stacked shadows. */
+.board-preset.is-icon {
+  filter: drop-shadow(1.6px 0 0 #fff) drop-shadow(-1.6px 0 0 #fff) drop-shadow(0 1.6px 0 #fff) drop-shadow(0 -1.6px 0 #fff)
+    drop-shadow(0 1.5px 1.5px rgb(0 0 0 / 0.2));
+}
+
+.board-sel {
+  position: absolute;
+  border: solid var(--foreground);
+  transform-origin: center;
+  z-index: 100000;
+  pointer-events: none;
+}
+
+.board-handle-hit {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  pointer-events: auto;
+  touch-action: none;
+  cursor: nwse-resize;
+}
+
+.board-handle-hit span {
+  border-radius: 50%;
+  background: #fff;
+  border: solid var(--foreground);
+}
+
+.board-actbar {
+  position: absolute;
+  z-index: 20;
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  background: var(--background);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-menu);
+}
+
+.board-actbar .icon-btn.is-danger {
+  color: var(--destructive);
+}
+
+.home-top {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 25;
+  pointer-events: none;
+}
+
+.home-top > * {
+  pointer-events: auto;
+}
+
+.home-top .float-group {
+  position: static;
+}
+
+.home-date {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  background: var(--background);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-float);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.home-done {
+  min-height: 40px;
+  box-shadow: var(--shadow-float);
+}
+
+.home-drawbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 8px 8px calc(10px + env(safe-area-inset-bottom));
+  background: var(--background);
+  border-top: 1px solid var(--border-soft);
+}
+
+.home-drawbar .st-tool {
+  width: 44px;
+}
+
+/* Add sticker sheet */
+.add-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-flow: dense;
+  gap: 10px;
+  margin: 14px 0 8px;
+}
+
+.add-cell {
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  padding: 6px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--canvas-paper);
+  cursor: pointer;
+}
+
+.add-cell:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-sel);
+}
+
+.add-cell.is-wide {
+  grid-column: span 2;
+  aspect-ratio: 2.1;
+}
+
+.add-art {
+  max-height: 100%;
+}
+
+/* Board settings sheet */
+.board-colors {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  margin: 10px 0 18px;
+}
+
+.board-colors button {
+  aspect-ratio: 1;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgb(0 0 0 / 0.08);
+  cursor: pointer;
+}
+
+.board-colors button.is-active {
+  box-shadow: var(--ring-sel);
+}
+
+.board-toggle {
+  margin: 18px 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.board-links {
+  margin-top: 10px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.board-links .menu-item {
+  width: 100%;
+  padding: 0;
+}

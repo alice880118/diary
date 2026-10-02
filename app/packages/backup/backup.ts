@@ -3,11 +3,12 @@ import { emitChange } from "../db/events";
 import { newId } from "../db/id";
 import { getAll, txGet, txPut, withTx } from "../db/idb";
 import { sha256 } from "../db/sha256";
-import { bytesMode, enableBytesMode, getSettings, hydrateAsset, isBlobStoreError, updateSettings } from "../db/repo";
+import { bytesMode, enableBytesMode, getHomeBoard, getSettings, hydrateAsset, isBlobStoreError, updateSettings } from "../db/repo";
 import {
   SCHEMA_VERSION,
   type Artwork,
   type Asset,
+  type HomeBoard,
   type MonthlyOverview,
   type Notebook,
   type Page,
@@ -27,6 +28,8 @@ interface BackupData {
   artworks: Artwork[];
   stickers: Sticker[];
   assets: AssetRecord[];
+  /** Home sticker board; absent in older backups. */
+  home?: HomeBoard;
 }
 
 export interface BackupCounts {
@@ -95,7 +98,8 @@ export async function exportBackup(onProgress?: (p: number) => void): Promise<{ 
     records.push({ ...meta, data: bytesToBase64(bytes) });
     onProgress?.((i + 1) / Math.max(1, assets.length));
   }
-  const data: BackupData = { notebooks, pages, months, artworks, stickers, assets: records };
+  const home = await getHomeBoard();
+  const data: BackupData = { notebooks, pages, months, artworks, stickers, assets: records, ...(home ? { home } : {}) };
   const dataStr = JSON.stringify(data);
   const checksum = await hashBytes(new TextEncoder().encode(dataStr));
   const counts = countsOf(data);
@@ -260,7 +264,7 @@ async function applyRestoreOnce(plan: RestorePlan, asBytes: boolean): Promise<{ 
   const d = plan.data;
   let added = 0;
   let skipped = 0;
-  await withTx(["notebooks", "pages", "months", "artworks", "stickers", "assets"], "readwrite", async (tx) => {
+  await withTx(["notebooks", "pages", "months", "artworks", "stickers", "assets", "settings"], "readwrite", async (tx) => {
     const idMap = new Map<string, string>();
     const skip = new Set<string>();
     const decide = async (store: "notebooks" | "pages" | "artworks" | "stickers" | "assets", list: { id: string }[]) => {
@@ -322,6 +326,15 @@ async function applyRestoreOnce(plan: RestorePlan, asBytes: boolean): Promise<{ 
       }
       await txPut(tx, "months", r);
       added++;
+    }
+    // The home board is restored only when this device hasn't made its own yet.
+    if (d.home && typeof d.home === "object" && Array.isArray(d.home.items)) {
+      const cur = await txGet<HomeBoard>(tx, "settings", "home");
+      if (cur) skipped++;
+      else {
+        await txPut(tx, "settings", { ...remapDeep(d.home, idMap), key: "home" });
+        added++;
+      }
     }
   });
   const s = await getSettings();

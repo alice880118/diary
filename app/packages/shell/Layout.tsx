@@ -54,15 +54,16 @@ export function SettingsLink() {
 }
 
 const NAV: { to: string; label: string; icon: IconName }[] = [
+  { to: "/home", get label() { return t("Home"); }, icon: "home" },
   { to: "/diary", get label() { return t("Diary"); }, icon: "book" },
   { to: "/create", get label() { return t("Create"); }, icon: "brush" },
   { to: "/assets", get label() { return t("Library"); }, icon: "sticker" },
 ];
 
-export function BottomNav() {
+export function BottomNav({ glass = false }: { glass?: boolean }) {
   const loc = useLocation();
   return (
-    <nav className="bottom-nav" aria-label={t("Main navigation")}>
+    <nav className={`bottom-nav${glass ? " is-glass" : ""}`} aria-label={t("Main navigation")}>
       {NAV.map((n) => {
         const active = loc.pathname.startsWith(n.to);
         return (

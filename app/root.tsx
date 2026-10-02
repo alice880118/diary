@@ -41,11 +41,11 @@ export function Layout({ children }: { children: ReactNode }) {
         <meta name="description" content="A paper collage diary: write, draw and stick your own stickers. Everything stays on your device." />
         <meta property="og:title" content="Paper Collage Diary" />
         <meta property="og:description" content="Write, draw and stick your own stickers. Everything stays on your device." />
-        <meta property="og:image" content="/og-image.jpg" />
+        <meta property="og:image" content="/og-image.jpg?v=3" />
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:image" content="/og-image.jpg" />
+        <meta name="twitter:image" content="/og-image.jpg?v=3" />
         <title>{t("Paper Collage Diary")}</title>
         <Meta />
         <Links />

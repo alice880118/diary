@@ -22,6 +22,7 @@ import {
   type Artwork,
   type Asset,
   type AssetRole,
+  type HomeBoard,
   type MonthlyOverview,
   type Notebook,
   type Page,
@@ -51,6 +52,29 @@ export async function updateSettings(patch: Partial<AppSettings>) {
   const cur = await getSettings();
   await putOne("settings", { ...cur, ...patch, key: "app" });
   emitChange();
+}
+
+/* ------------------------------------------------------------------ */
+/* Home board                                                          */
+/* ------------------------------------------------------------------ */
+
+export const DEFAULT_BOARD_BG: HomeBoard["background"] = { color: "blush", texture: "grain", shapes: true };
+
+/** The stored board, or null before the first edit. */
+export async function getHomeBoard(): Promise<HomeBoard | null> {
+  const b = await getOne<HomeBoard>("settings", "home");
+  if (!b) return null;
+  return {
+    key: "home",
+    background: { ...DEFAULT_BOARD_BG, ...(b.background ?? {}) },
+    items: Array.isArray(b.items) ? b.items : [],
+    strokes: Array.isArray(b.strokes) ? b.strokes : [],
+    updatedAt: b.updatedAt ?? 0,
+  };
+}
+
+export async function saveHomeBoard(b: HomeBoard) {
+  await putOne("settings", { ...b, key: "home", updatedAt: Date.now() });
 }
 
 /* ------------------------------------------------------------------ */
@@ -564,11 +588,12 @@ export function collectAssetRefs(value: unknown, out: Set<string>) {
  */
 export async function collectGarbage(): Promise<number> {
   return withTx(
-    ["notebooks", "pages", "months", "artworks", "stickers", "assets"],
+    ["notebooks", "pages", "months", "artworks", "stickers", "assets", "settings"],
     "readwrite",
     async (tx) => {
       const refs = new Set<string>();
-      for (const store of ["pages", "months", "artworks", "stickers"] as const) {
+      // "settings" holds the home board, whose stickers reference assets too.
+      for (const store of ["pages", "months", "artworks", "stickers", "settings"] as const) {
         const rows = await txGetAll<unknown>(tx, store);
         collectAssetRefs(rows, refs);
       }
