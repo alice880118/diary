@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { LinkDisplay, LinkObject, LinkShape } from "../db/types";
-import { linkBox, normalizeUrl } from "../page/links";
-import { LINK_COLORS, LINK_SHAPE_IDS, LinkSticker, LinkView } from "../page/ObjectViews";
+import { linkBox, linkTagWidth, normalizeUrl } from "../page/links";
+import { LINK_COLORS, LINK_SHAPE_IDS, LinkSticker, LinkStickerLabel, LinkView, linkHost } from "../page/ObjectViews";
 import { ColorDots } from "../shell/ColorDots";
 import { Sheet } from "../shell/Sheet";
 import { t } from "../i18n";
@@ -50,7 +50,7 @@ export function LinkPanel({
     type: "link",
     x: 0,
     y: 0,
-    ...linkBox(display),
+    ...(display === "tag" ? { w: linkTagWidth(title || linkHost(normalized ?? "https://example.com"), linkHost(normalized ?? "https://example.com")), h: 64 } : linkBox(display)),
     rot: 0,
     z: 0,
     locked: false,
@@ -150,7 +150,10 @@ export function LinkPanel({
         <span className="field-label">{t("Preview")}</span>
         <div className="link-preview">
           {display === "sticker" ? (
-            <LinkSticker shape={shape} color={color} style={{ width: 80, height: 80 }} />
+            <div style={{ position: "relative", width: 80, height: 80, marginBottom: 28 }}>
+              <LinkSticker shape={shape} color={color} style={{ width: 80, height: 80 }} />
+              <LinkStickerLabel url={preview.url} size={12} />
+            </div>
           ) : (
             <div style={{ position: "relative", width: 300, height: preview.h * k }}>
               <div style={{ position: "absolute", width: preview.w, height: preview.h, transform: `scale(${k})`, transformOrigin: "0 0" }}>

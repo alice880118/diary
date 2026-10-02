@@ -9,8 +9,8 @@ import type { LinkObject, NoteObject, Page, PageObject, Sticker, TextObject } fr
 import { DrawBar, inkConfig, shapeStyle, useDrawPrefs, type DrawTool, type StylePatch } from "../create/DrawTools";
 import { SKETCH_COLORS } from "../create/SketchTools";
 import { DateSheet } from "../notebook/DateSheet";
-import { fetchLinkMeta, linkBox, openExternal } from "../page/links";
-import { TAPE_COLORS } from "../page/ObjectViews";
+import { fetchLinkMeta, linkBox, linkTagWidth, openExternal } from "../page/links";
+import { TAPE_COLORS, linkHost } from "../page/ObjectViews";
 import { PageStylePicker } from "../page/PageStylePicker";
 import { Icon, type IconName } from "../shell/Icon";
 import { AppHeader } from "../shell/Layout";
@@ -189,6 +189,7 @@ export function PageEditor({
       size: 40,
       color: "#2f2a25",
       align: "left",
+      autoW: true,
     };
     addObject(o);
     textRecorded.current = true;
@@ -266,10 +267,12 @@ export function PageEditor({
         display: d.display,
         ...(d.shape ? { shape: d.shape } : {}),
         ...(d.color ? { color: d.color } : {}),
-        // Sticker/tag keep a user-resized box while their display is unchanged.
-        ...((d.display === "sticker" || d.display === "tag") && existing.display === d.display
-          ? {}
-          : linkBox(d.display, existing.w)),
+        // A sticker keeps a user-resized box while its display is unchanged; a tag always fits its text.
+        ...(d.display === "tag"
+          ? { w: linkTagWidth(d.title || existing.meta?.siteTitle || linkHost(d.url), linkHost(d.url)), h: 64 }
+          : d.display === "sticker" && existing.display === d.display
+            ? {}
+            : linkBox(d.display, existing.w)),
         meta,
       } as Partial<LinkObject>);
     } else {
@@ -278,7 +281,7 @@ export function PageEditor({
         type: "link",
         x: 450,
         y: 780 + jitter(),
-        ...linkBox(d.display),
+        ...(d.display === "tag" ? { w: linkTagWidth(d.title || linkHost(d.url), linkHost(d.url)), h: 64 } : linkBox(d.display)),
         rot: 0,
         z: 0,
         locked: false,

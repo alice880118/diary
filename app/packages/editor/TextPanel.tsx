@@ -1,7 +1,14 @@
-import type { TextObject } from "../db/types";
+import type { TextObject, TextWeight } from "../db/types";
 import { FONTS, TEXT_COLORS } from "../page/fonts";
 import { Sheet } from "../shell/Sheet";
 import { t } from "../i18n";
+
+const WEIGHTS: { id: TextWeight; label: string }[] = [
+  { id: 400, get label() { return t("Regular"); } },
+  { id: 500, get label() { return t("Medium"); } },
+  { id: 600, get label() { return t("Semibold"); } },
+  { id: 700, get label() { return t("Bold"); } },
+];
 
 export function TextPanel({
   obj,
@@ -35,6 +42,19 @@ export function TextPanel({
                 onClick={() => onChange({ font: f.id })}
               >
                 {t(f.label)}
+              </button>
+            ))}
+          </div>
+          <div className="tabs" style={{ marginBottom: 8 }} role="group" aria-label={t("Weight")}>
+            {WEIGHTS.map((w) => (
+              <button
+                key={w.id}
+                type="button"
+                className={`tab${(obj.weight ?? 400) === w.id ? " is-active" : ""}`}
+                style={{ fontWeight: w.id }}
+                onClick={() => onChange({ weight: w.id })}
+              >
+                {w.label}
               </button>
             ))}
           </div>

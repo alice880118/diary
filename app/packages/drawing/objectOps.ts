@@ -59,3 +59,41 @@ export function duplicateStroke(st: Stroke, offset = 24): Stroke {
   }
   return { ...st, id: newId("st"), points: st.points.map((v) => v + offset) };
 }
+
+/** Union box (unrotated) of several objects, or null when empty. */
+export function groupBox(list: Stroke[]): Box | null {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const st of list) {
+    const b = strokeBox(st);
+    const r = (b.rot * Math.PI) / 180;
+    const hw = (Math.abs(Math.cos(r)) * b.w + Math.abs(Math.sin(r)) * b.h) / 2;
+    const hh = (Math.abs(Math.sin(r)) * b.w + Math.abs(Math.cos(r)) * b.h) / 2;
+    minX = Math.min(minX, b.cx - hw);
+    maxX = Math.max(maxX, b.cx + hw);
+    minY = Math.min(minY, b.cy - hh);
+    maxY = Math.max(maxY, b.cy + hh);
+  }
+  if (!Number.isFinite(minX)) return null;
+  return { cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, w: maxX - minX, h: maxY - minY, rot: 0 };
+}
+
+/**
+ * Applies a group box change to one member: points (or the shape's center)
+ * follow the group, and line width scales with the group so the drawing keeps
+ * its look.
+ */
+export function transformStrokeInGroup(st: Stroke, from: Box, to: Box): Stroke {
+  const kx = from.w ? to.w / from.w : 1;
+  const ky = from.h ? to.h / from.h : 1;
+  const kw = Math.sqrt(Math.abs(kx * ky)) || 1;
+  const width = Math.max(0.5, st.width * kw);
+  if (st.shape) {
+    const [cx, cy] = mapPoints([st.shape.cx, st.shape.cy], from, to);
+    const g = { ...st.shape, cx, cy, w: st.shape.w * kx, h: st.shape.h * ky, rot: st.shape.rot + (to.rot - from.rot) };
+    return { ...st, width, shape: g, points: shapeFallbackPoints(g) };
+  }
+  return { ...st, width, points: mapPoints(st.points, from, to) };
+}

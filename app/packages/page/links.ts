@@ -87,6 +87,25 @@ export async function fetchLinkMeta(url: string, timeoutMs = 6000): Promise<Link
  * Box size for a link object. Card and text keep their v1 sizes so existing
  * links never move or resize unless the user changes how they're displayed.
  */
+const TAG_FONT = '"Poppins", "Noto Sans TC", "PingFang TC", sans-serif';
+let measureCtx: CanvasRenderingContext2D | null = null;
+
+function textWidth(text: string, font: string): number {
+  if (typeof document === "undefined") return text.length * 13;
+  measureCtx ??= document.createElement("canvas").getContext("2d");
+  if (!measureCtx) return text.length * 13;
+  measureCtx.font = font;
+  return measureCtx.measureText(text).width;
+}
+
+/** Tag width that just fits the icon, title and (when different) host; mirrors LinkView's tag layout. */
+export function linkTagWidth(title: string, host: string): number {
+  let w = 4 + 36 + 30; // border, side padding, icon
+  w += 10 + textWidth(title, `600 24px ${TAG_FONT}`);
+  if (host && host !== title) w += 10 + textWidth(host, `400 20px ${TAG_FONT}`);
+  return Math.round(Math.min(860, Math.max(140, w + 6)));
+}
+
 export function linkBox(display: LinkDisplay, prevW?: number): { w: number; h: number } {
   switch (display) {
     case "card":

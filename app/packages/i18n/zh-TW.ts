@@ -665,4 +665,9 @@ export const ZH_TW: Record<string, string> = {
   "To": "結束色",
   "Top to bottom": "由上到下",
   "Used behind the bookshelf and calendar pages.": "用於書架與月曆頁面的背景。",
+  "Weight": "字重",
+  "Regular": "一般",
+  "Medium": "中等",
+  "Semibold": "半粗",
+  "Bold": "粗體",
 };

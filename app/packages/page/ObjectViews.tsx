@@ -30,6 +30,9 @@ export function objectFrameStyle(o: PageObject): CSSProperties {
   };
 }
 
+/** Widest an auto-width text box grows before wrapping (page units). */
+export const TEXT_AUTO_MAX_W = 820;
+
 export const TextView = forwardRef<HTMLDivElement, { o: TextObject }>(function TextView(
   { o },
   ref,
@@ -41,8 +44,9 @@ export const TextView = forwardRef<HTMLDivElement, { o: TextObject }>(function T
         position: "absolute",
         left: 0,
         top: 0,
-        width: o.w,
+        ...(o.autoW ? { width: "max-content", maxWidth: TEXT_AUTO_MAX_W, minWidth: 40 } : { width: o.w }),
         fontFamily: fontStack(o.font),
+        fontWeight: o.weight ?? 400,
         fontSize: o.size,
         lineHeight: 1.45,
         color: o.color,
@@ -398,24 +402,67 @@ export function LinkSticker({
   );
 }
 
+/** "youtube.com" style key address for labels. */
+export function shortHost(url: string): string {
+  return linkHost(url).replace(/^www\./, "");
+}
+
+/** Key address under a link sticker, cut with … when long. */
+export function LinkStickerLabel({ url, size = 22 }: { url: string; size?: number }) {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: "calc(100% + 6px)",
+        left: "50%",
+        transform: "translateX(-50%)",
+        maxWidth: "150%",
+        padding: "2px 10px",
+        borderRadius: 999,
+        background: "rgba(255,255,255,0.92)",
+        boxShadow: "0 1px 2px rgba(0,0,0,0.12)",
+        fontSize: size,
+        fontWeight: 600,
+        lineHeight: 1.3,
+        color: "#3a332c",
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        pointerEvents: "none",
+      }}
+    >
+      {shortHost(url)}
+    </div>
+  );
+}
+
 export function LinkView({ o }: { o: LinkObject }) {
   const title = o.title || o.meta?.siteTitle || linkHost(o.url);
   if (o.display === "sticker") {
     return (
-      <LinkSticker
-        shape={o.shape}
-        color={o.color}
-        label={title}
-        style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
-      />
+      <>
+        <LinkSticker
+          shape={o.shape}
+          color={o.color}
+          label={title}
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+        />
+        <LinkStickerLabel url={o.url} />
+      </>
     );
   }
   if (o.display === "tag") {
+    // Hugs its content and stays centered in the box, so older (wider) tags fit too.
     return (
       <div
         style={{
           position: "absolute",
-          inset: 0,
+          top: 0,
+          bottom: 0,
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: "max-content",
+          maxWidth: "100%",
           display: "flex",
           alignItems: "center",
           gap: 10,

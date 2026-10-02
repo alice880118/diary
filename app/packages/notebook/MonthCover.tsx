@@ -28,6 +28,7 @@ const DOT = "radial-gradient(#d9d2c3 1px, transparent 1.3px) 0 0 / 10px 10px";
 /** The month cover: a taped polaroid (or sticky-note shape) holding the cover sticker. */
 export function CoverNote({ cover, snap, caption, width }: { cover: MonthCover; snap: StickerSnap | null; caption?: string; width: string | number }) {
   const polaroid = cover.shape === "polaroid";
+  const shapeCss = polaroid ? {} : noteShapeCss(cover.shape as Exclude<CoverShape, "polaroid">);
   const photo = (
     <div style={{ aspectRatio: "1.2", background: `${DOT}, ${cover.paper}`, display: "grid", placeItems: "center", ...(polaroid ? null : { aspectRatio: "1" }) }}>
       {snap ? (
@@ -43,20 +44,23 @@ export function CoverNote({ cover, snap, caption, width }: { cover: MonthCover; 
   );
   return (
     <div style={{ position: "relative", width, margin: "0 auto", transform: "rotate(2.5deg)" }}>
-      <div
-        style={{
-          position: "relative",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
-          ...(polaroid ? { background: "#fff", padding: "6px 6px 5px" } : { background: cover.paper, ...noteShapeCss(cover.shape as Exclude<CoverShape, "polaroid">) }),
-        }}
-      >
-        {polaroid ? photo : <div style={{ padding: "12%" }}>{photo}</div>}
-        {polaroid && caption ? (
-          <div className="ell" style={{ fontSize: 11, fontWeight: 500, textAlign: "center", marginTop: 4 }}>
-            {caption}
+      {polaroid ? (
+        <div style={{ position: "relative", boxShadow: "0 2px 8px rgba(0,0,0,0.12)", background: "#fff", padding: "6px 6px 5px" }}>
+          {photo}
+          {caption ? (
+            <div className="ell" style={{ fontSize: 11, fontWeight: 500, textAlign: "center", marginTop: 4 }}>
+              {caption}
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        // Square sits flat on the page; the other note shapes get a white die-cut frame.
+        <div style={{ position: "relative", filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.14))" }}>
+          <div style={{ ...shapeCss, ...(cover.shape === "square" ? { background: cover.paper } : { background: "#fff", padding: 6 }) }}>
+            <div style={cover.shape === "square" ? { padding: "12%" } : { ...shapeCss, background: cover.paper, padding: "11%" }}>{photo}</div>
           </div>
-        ) : null}
-      </div>
+        </div>
+      )}
       {cover.fix === "tape" ? (
         <Tape pattern={cover.tapePattern} color={cover.tapeColor} style={{ top: -8, left: "24%", width: "52%", transform: "rotate(-6deg)" }} />
       ) : cover.fix === "pin" ? (

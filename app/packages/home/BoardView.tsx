@@ -160,7 +160,7 @@ export function BoardView({
     const itemEl = target.closest<HTMLElement>("[data-item]");
     const handle = target.closest("[data-handle]");
     if (mode === "stickers" && !itemEl && !handle && pointers.current.size === 0) {
-      // Empty board: deselect and leave the pointer to native scrolling.
+      // Empty board: just deselect.
       if (!target.closest("[data-actions]")) onSelect(null);
       return;
     }

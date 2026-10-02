@@ -123,7 +123,13 @@ export interface TextObject extends ObjectBase {
   size: number;
   color: string;
   align: "left" | "center" | "right";
+  /** Font weight; absent = 400 (regular). */
+  weight?: TextWeight;
+  /** Box hugs the text width (new texts); absent = fixed width as stored. */
+  autoW?: boolean;
 }
+
+export type TextWeight = 400 | 500 | 600 | 700;
 
 export interface ImageObject extends ObjectBase {
   type: "image";

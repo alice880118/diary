@@ -4,12 +4,12 @@
   background: #fedaff;
 }
 
+/* The board is fixed: no vertical scrolling (anything past the screen is cropped). */
 .board-scroll {
   position: absolute;
   inset: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 .board-stage {
@@ -26,7 +26,7 @@
   height: 874px;
   transform-origin: 0 0;
   overflow: hidden;
-  touch-action: pan-y;
+  touch-action: none;
   user-select: none;
   -webkit-user-select: none;
 }

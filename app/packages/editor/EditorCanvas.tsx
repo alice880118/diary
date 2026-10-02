@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { PAGE_H, PAGE_W, type Page, type PageObject, type Stroke } from "../db/types";
 import type { Box } from "../drawing/geometry";
-import { dragBox as nextBox, duplicateStroke, pickStroke, strokeBox, transformStroke } from "../drawing/objectOps";
+import { dragBox as nextBox, duplicateStroke, groupBox, pickStroke, strokeBox, transformStroke, transformStrokeInGroup } from "../drawing/objectOps";
 import { ShapeDrag, StrokeSession, type InkConfig, type SessionResult, type ShapeStyle } from "../drawing/session";
 import { TransformBox, type BoxOp, type DragPhase } from "../drawing/TransformBox";
 import { Icon } from "../shell/Icon";
@@ -139,22 +139,29 @@ export function EditorCanvas(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusId]);
 
-  // Text boxes grow with content; store the measured height (not a history step).
+  // Text boxes grow with content (auto-width ones in both directions); store the
+  // measured size (not a history step). Width changes keep the aligned edge in place.
   useLayoutEffect(() => {
-    const fixes: { id: string; h: number }[] = [];
+    const fixes: { id: string; h: number; w: number; x: number }[] = [];
     for (const o of page.objects) {
       if (o.type !== "text") continue;
       const el = textEls.current.get(o.id);
       if (!el) continue;
       const h = Math.max(40, el.offsetHeight);
-      if (Math.abs(h - o.h) > 2) fixes.push({ id: o.id, h });
+      const w = o.autoW ? Math.max(40, el.offsetWidth) : o.w;
+      if (Math.abs(h - o.h) > 2 || Math.abs(w - o.w) > 2) {
+        const dw = w - o.w;
+        const r = (o.rot * Math.PI) / 180;
+        const shift = o.align === "left" ? dw / 2 : o.align === "right" ? -dw / 2 : 0;
+        fixes.push({ id: o.id, h, w, x: o.x + shift * Math.cos(r) });
+      }
     }
     if (fixes.length) {
       onTransient((p) => ({
         ...p,
         objects: p.objects.map((o) => {
           const f = fixes.find((x) => x.id === o.id);
-          return f ? { ...o, h: f.h } : o;
+          return f ? { ...o, h: f.h, w: f.w, x: f.x } : o;
         }),
       }));
     }
@@ -513,7 +520,10 @@ export function EditorCanvas(props: Props) {
         const b = strokeBounds(st);
         if (b.maxX >= minX && b.minX <= maxX && b.maxY >= minY && b.minY <= maxY) ids.add(st.id);
       }
-      setSelStrokes(ids);
+      if (ids.size === 1) {
+        onInkSel?.([...ids][0]);
+        setSelStrokes(new Set());
+      } else setSelStrokes(ids);
       return;
     }
     if (g.kind === "moveSel") {
@@ -601,6 +611,34 @@ export function EditorCanvas(props: Props) {
     if (phase === "end") {
       objDrag.current = null;
       setDragBoxState(null);
+    }
+  };
+
+  /* Several strokes selected with the marquee: move / resize / rotate as one drawing. */
+  const groupDrag = useRef<{ origs: Stroke[]; box: Box; recorded: boolean } | null>(null);
+  const [groupDragBox, setGroupDragBox] = useState<Box | null>(null);
+  const selList = mode === "ink" && selStrokes.size > 1 ? page.ink.filter((st) => selStrokes.has(st.id)) : [];
+  const selGroupBox = selList.length ? groupDragBox ?? groupBox(selList) : null;
+
+  const dragGroup = (op: BoxOp, phase: DragPhase, p: { x: number; y: number }, start: { x: number; y: number }) => {
+    if (!selGroupBox) return;
+    if (phase === "start") {
+      groupDrag.current = { origs: selList, box: selGroupBox, recorded: false };
+      return;
+    }
+    const d = groupDrag.current;
+    if (!d) return;
+    const nb = nextBox(d.box, op, p, start);
+    const next = new Map(d.origs.map((st) => [st.id, transformStrokeInGroup(st, d.box, nb)]));
+    const fn = (pg: Page) => ({ ...pg, ink: pg.ink.map((st) => next.get(st.id) ?? st) });
+    if (!d.recorded) {
+      onCommit(fn);
+      d.recorded = true;
+    } else onTransient(fn);
+    setGroupDragBox(nb);
+    if (phase === "end") {
+      groupDrag.current = null;
+      setGroupDragBox(null);
     }
   };
 
@@ -721,7 +759,9 @@ export function EditorCanvas(props: Props) {
               }}
             />
           ) : null}
-          {sb ? (
+          {selGroupBox ? (
+            <TransformBox box={selGroupBox} unit={1} zoom={s} toSurface={toPage} onDrag={dragGroup} z={10004} />
+          ) : sb ? (
             <div
               style={{
                 position: "absolute",
@@ -736,6 +776,35 @@ export function EditorCanvas(props: Props) {
           ) : null}
         </div>
       </div>
+      {selList.length ? (
+        <div className="float-group ink-sel-actions" role="toolbar" aria-label={t("Selection")} onPointerDown={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label={t("Duplicate")}
+            onClick={() => {
+              const copies = selList.map((st) => duplicateStroke(st));
+              onCommit((pg) => ({ ...pg, ink: [...pg.ink, ...copies] }));
+              setSelStrokes(new Set(copies.map((c) => c.id)));
+            }}
+          >
+            <Icon name="copy" />
+          </button>
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label={t("Delete")}
+            style={{ color: "var(--destructive)" }}
+            onClick={() => {
+              const ids = new Set(selList.map((st) => st.id));
+              onCommit((pg) => ({ ...pg, ink: pg.ink.filter((st) => !ids.has(st.id)) }));
+              setSelStrokes(new Set());
+            }}
+          >
+            <Icon name="trash" />
+          </button>
+        </div>
+      ) : null}
       {inkSelStroke ? (
         <div className="float-group ink-sel-actions" role="toolbar" aria-label={t("Selection")} onPointerDown={(e) => e.stopPropagation()}>
           <button
