@@ -3,7 +3,6 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ART_H, ART_W, type Stroke } from "../db/types";
 import type { Box } from "../drawing/geometry";
 import { ShapeDrag, StrokeSession, type InkConfig, type SessionResult, type ShapeStyle } from "../drawing/session";
-import { drawStroke } from "../drawing/strokes";
 import { TransformBox, type BoxOp, type DragPhase } from "../drawing/TransformBox";
 
 export type ArtTool =
@@ -12,14 +11,7 @@ export type ArtTool =
   | { kind: "shape"; style: ShapeStyle }
   | { kind: "select" }
   | { kind: "moveImage" }
-  /**
-   * Paints an ink mask with the sketch brush engine (brush type, texture,
-   * stabilizer, smoothing, hold to perfect, pen pressure); the stroke is
-   * stamped into the mask on release. `also`: extra masks touched by the
-   * same stroke (paint-mode eraser clears every ink).
-   */
-  | { kind: "maskBrush"; canvas: HTMLCanvasElement; ink: InkConfig; also?: HTMLCanvasElement[] }
-  | { kind: "lasso"; purpose: "maskAdd" | "maskSub" | "crop" };
+  | { kind: "lasso"; purpose: "crop" };
 
 type Gesture =
   | { kind: "none" }
@@ -28,7 +20,6 @@ type Gesture =
   | { kind: "shapeDrag"; x: number; y: number }
   | { kind: "tap"; x: number; y: number; cx: number; cy: number; moved: boolean }
   | { kind: "move"; x: number; y: number }
-  | { kind: "mask" }
   | { kind: "lasso"; pts: number[] };
 
 interface View {
@@ -61,7 +52,6 @@ export function ArtCanvas({
   onSelectionDrag,
   onImageDrag,
   onDragStart,
-  onMaskEnd,
   onLasso,
 }: {
   size: number;
@@ -80,7 +70,6 @@ export function ArtCanvas({
   onImageDrag?: (dx: number, dy: number, done: boolean) => void;
   /** Art-space point where a moveImage drag starts. */
   onDragStart?: (x: number, y: number) => void;
-  onMaskEnd?: () => void;
   onLasso?: (poly: number[]) => void;
 }) {
   const baseRef = useRef<HTMLCanvasElement>(null);
@@ -201,21 +190,6 @@ export function ArtCanvas({
     }
   };
 
-  /** Stamps a finished brush stroke into the ink mask(s). */
-  const stampMask = (r: SessionResult) => {
-    if (tool.kind !== "maskBrush" || !r) return;
-    const st = r.kind === "shape" ? r.shape : r.smoothed ?? r.stroke;
-    for (const canvas of [tool.canvas, ...(tool.also ?? [])]) {
-      const ctx = canvas.getContext("2d");
-      if (!ctx) continue;
-      ctx.save();
-      ctx.setTransform(canvas.width / ART_W, 0, 0, canvas.height / ART_H, 0, 0);
-      drawStroke(ctx, { ...st, color: "#ffffff" });
-      ctx.restore();
-    }
-    repaintOverlay();
-  };
-
   const drawLasso = (pts: number[]) => {
     const c = liveRef.current;
     const ctx = c?.getContext("2d");
@@ -236,8 +210,7 @@ export function ArtCanvas({
 
   const cancelSingle = () => {
     const g = gesture.current;
-    if (g.kind === "ink" || g.kind === "mask") {
-      // The first finger of a pinch must not leave a dab in the mask.
+    if (g.kind === "ink") {
       live.current?.cancel();
       live.current = null;
     }
@@ -293,14 +266,6 @@ export function ArtCanvas({
         gesture.current = { kind: "move", x: p.x, y: p.y };
         onDragStart?.(p.x, p.y);
         return;
-      case "maskBrush": {
-        const c = liveRef.current;
-        if (!c) return;
-        live.current = new StrokeSession(c, c.width / ART_W, tool.ink, { unitsPerPx: ART_W / (size * viewRef.current.z) });
-        live.current.add(p.x, p.y, e.timeStamp, e.pressure, e.pointerType);
-        gesture.current = { kind: "mask" };
-        return;
-      }
       case "lasso":
         gesture.current = { kind: "lasso", pts: [p.x, p.y] };
         return;
@@ -325,7 +290,7 @@ export function ArtCanvas({
     }
     const evs = typeof e.nativeEvent.getCoalescedEvents === "function" ? e.nativeEvent.getCoalescedEvents() : [];
     const list = evs.length ? evs : [e.nativeEvent];
-    if (g.kind === "ink" || g.kind === "mask") {
+    if (g.kind === "ink") {
       for (const ev of list) {
         const p = toArt(ev.clientX, ev.clientY);
         live.current?.add(p.x, p.y, ev.timeStamp, ev.pressure, ev.pointerType);
@@ -399,21 +364,6 @@ export function ArtCanvas({
     if (g.kind === "move") {
       const p = toArt(e.clientX, e.clientY);
       onImageDrag?.(cancelled ? 0 : p.x - g.x, cancelled ? 0 : p.y - g.y, true);
-      return;
-    }
-    if (g.kind === "mask") {
-      const session = live.current;
-      live.current = null;
-      if (!session) return;
-      if (cancelled) {
-        session.cancel();
-        return;
-      }
-      const p = toArt(e.clientX, e.clientY);
-      const r = session.finish(p.x, p.y);
-      if (!r) return;
-      stampMask(r);
-      onMaskEnd?.();
       return;
     }
     if (g.kind === "lasso") {

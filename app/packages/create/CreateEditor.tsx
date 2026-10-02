@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { imageLayerFromFile } from "../art/create";
 import {
   contentCanvas,
+  coverageStroke,
+  inkMask,
   renderDraft,
   renderFinal,
   renderSingleInk,
@@ -41,8 +43,6 @@ import { ArtCanvas, type ArtTool } from "./ArtCanvas";
 import { BgRemoveSheet } from "./BgRemoveSheet";
 import { FinishSheet } from "./FinishSheet";
 import {
-  BRUSH_ICON,
-  BrushSettingsSheet,
   DrawBar,
   inkConfig,
   PRINT_PREFS,
@@ -53,7 +53,6 @@ import {
   type StylePatch,
 } from "./DrawTools";
 import {
-  ColorButton,
   ImageAdjustPopover,
   LabeledTool,
   LayersSheet,
@@ -63,6 +62,7 @@ import {
   ToolButton,
 } from "./SketchTools";
 import type { Box } from "../drawing/geometry";
+import { drawStroke } from "../drawing/strokes";
 import { dragBox as nextBox, duplicateStroke, pickStroke, strokeBox, transformStroke } from "../drawing/objectOps";
 import type { SessionResult } from "../drawing/session";
 import type { BoxOp, DragPhase } from "../drawing/TransformBox";
@@ -73,8 +73,6 @@ import {
   InkColorPopover,
   InksSheet,
   inkLabel,
-  MASK_TOOLS,
-  MaskSizePopover,
   MaterialPopover,
   PAPER_STRIP_H,
   PaperSheet,
@@ -82,7 +80,6 @@ import {
   PRINT_VIEWS,
   PrintParamsSheet,
   TexturePopover,
-  type MaskTool,
   type PrintView,
 } from "./StudioSteps";
 import { textureById } from "../textures/catalog";
@@ -107,6 +104,16 @@ const STATUS: Record<SaveStatus, string> = {
 
 /** Bottom toolbar height + gap, where L2 popovers sit. */
 const POP_BOTTOM = 88;
+
+const strokeVersions = new WeakMap<Stroke[], number>();
+let strokeVersionSeq = 0;
+/** A cheap change key for a stroke list (lists are replaced, never mutated). */
+function strokesVersion(list: Stroke[] | undefined) {
+  if (!list) return 0;
+  let v = strokeVersions.get(list);
+  if (!v) strokeVersions.set(list, (v = ++strokeVersionSeq));
+  return v;
+}
 
 function assetSignature(art: Artwork) {
   return [
@@ -153,7 +160,7 @@ export function CreateEditor({
   const [paintMode, setPaintModeState] = useState(false);
   const [guide, setGuide] = useState(true);
   const [pop, setPop] = useState<
-    "brush" | "palette" | "image" | "texture" | "maskSize" | "inkColor" | "material" | "cut" | null
+    "brush" | "palette" | "image" | "texture" | "inkColor" | "material" | "cut" | null
   >(null);
   const [layersOpen, setLayersOpen] = useState(false);
   const [paperOpen, setPaperOpen] = useState(false);
@@ -162,22 +169,16 @@ export function CreateEditor({
   const [viewOpen, setViewOpen] = useState(false);
   const viewRef = useRef<HTMLButtonElement>(null);
   const texAdjustRef = useRef<HTMLButtonElement>(null);
-  const inkColorRef = useRef<HTMLButtonElement>(null);
-  const maskSizeRef = useRef<HTMLButtonElement>(null);
   const stickerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   /** Sticker canvas: the cut editor while the Cut popover edits a box or lasso, else the preview. */
   const preview: "static" | "shine" | "crop" =
     step === "sticker" && pop === "cut" && art.sticker.crop.kind !== "contour" ? "crop" : shine ? "shine" : "static";
   const cropDrag = useRef<{ mode: "move" | "resize"; rect: { x: number; y: number; w: number; h: number } } | null>(null);
-  const toolRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const colorRef = useRef<HTMLButtonElement>(null);
   const adjustRef = useRef<HTMLButtonElement>(null);
-  const [maskTool, setMaskTool] = useState<MaskTool>("brush");
+  /** Print reuses the sketch drawing tools, with its own remembered settings. */
+  const [printTool, setPrintTool] = useState<DrawTool>("brush");
   const [printPrefs, setPrintPrefs] = useDrawPrefs(PRINT_PREFS_KEY, PRINT_PREFS);
-  const [printBrushOpen, setPrintBrushOpen] = useState(false);
-  const printSizeKey = maskTool === "erase" ? "eraser" : printPrefs.brush;
-  const brushSize = printPrefs.sizes[printSizeKey];
-  const setBrushSize = (v: number) => setPrintPrefs({ sizes: { ...printPrefs.sizes, [printSizeKey]: v } });
   const [printView, setPrintView] = useState<PrintView>("composite");
   const [base, setBase] = useState<HTMLCanvasElement | null>(null);
   const [built, setBuilt] = useState<{ art: string; shape: string; w: number; h: number } | null>(null);
@@ -251,7 +252,7 @@ export function CreateEditor({
   const emptyMasks = useMemo(() => {
     const s = new Set<string>();
     if (!rt) return s;
-    for (const p of art.print.layers) if (!maskHasContent(rt.printMasks.get(p.id))) s.add(p.id);
+    for (const p of art.print.layers) if (!maskHasContent(inkMask(rt, p))) s.add(p.id);
     return s;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rt, rtTick, art.print.layers]);
@@ -384,36 +385,23 @@ export function CreateEditor({
     }
   };
 
-  const commitMask = async (p: PrintLayer) => {
+  /** Saves an ink's raster mask; `baked` drops its strokes (already drawn into the raster). */
+  const commitMask = async (p: PrintLayer, baked = false) => {
     const c = rtRef.current?.printMasks.get(p.id);
     if (!c) return;
     try {
       const id = await persistMask(c, p.name);
       change((a) => ({
         ...a,
-        print: { ...a.print, layers: a.print.layers.map((l) => (l.id === p.id ? { ...l, maskAssetId: id } : l)) },
+        print: {
+          ...a.print,
+          layers: a.print.layers.map((l) => (l.id === p.id ? { ...l, maskAssetId: id, ...(baked ? { strokes: [] } : null) } : l)),
+        },
       }));
       setRtTick((t) => t + 1);
     } catch (err) {
       toast(describeError(err), "error");
     }
-  };
-
-  const lassoMask = (poly: number[], add: boolean) => {
-    if (!pLayer) return;
-    const c = rtRef.current?.printMasks.get(pLayer.id);
-    if (!c) return;
-    const ctx = ctx2d(c);
-    ctx.save();
-    ctx.globalCompositeOperation = add ? "source-over" : "destination-out";
-    ctx.fillStyle = "#fff";
-    ctx.beginPath();
-    ctx.moveTo(poly[0], poly[1]);
-    for (let i = 2; i < poly.length; i += 2) ctx.lineTo(poly[i], poly[i + 1]);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-    void commitMask(pLayer);
   };
 
   const maskFromLayer = (inkId: string, artLayerId: string) => {
@@ -425,13 +413,16 @@ export function CreateEditor({
     const src = renderSource(art, rt, 1, artLayerId);
     const ctx = ctx2d(c);
     ctx.globalCompositeOperation = "source-over";
+    // Flatten the ink's strokes first so the new area lands on top of them.
+    for (const st of ink.strokes ?? []) drawStroke(ctx, coverageStroke(st));
+    ctx.globalCompositeOperation = "source-over";
     ctx.drawImage(src, 0, 0);
     // Normalize colours to white so only coverage matters.
     ctx.globalCompositeOperation = "source-in";
     ctx.fillStyle = "#fff";
     ctx.fillRect(0, 0, ART_W, ART_H);
     ctx.globalCompositeOperation = "source-over";
-    void commitMask(ink);
+    void commitMask(ink, true);
     toast(t("Area created from layer"));
   };
 
@@ -441,7 +432,7 @@ export function CreateEditor({
     const c = rtRef.current?.printMasks.get(ink.id);
     if (!c) return;
     ctx2d(c).clearRect(0, 0, ART_W, ART_H);
-    void commitMask(ink);
+    void commitMask(ink, true);
   };
 
   const autoFitCrop = () => {
@@ -489,20 +480,28 @@ export function CreateEditor({
     }
   }, []);
 
+  const inkOfColor = (c: string) => art.print.layers.find((l) => l.color.toLowerCase() === c.toLowerCase()) ?? null;
+
+  /** A new ink in this color, or null (with a message) when the ink limit is reached. */
+  const newInkOfColor = (c: string): PrintLayer | null => {
+    if (art.print.layers.length >= MAX_PRINT_LAYERS) {
+      toast(t("You can use up to {MAX_PRINT_LAYERS} ink colors. Pick one you already used.", { MAX_PRINT_LAYERS }), "error");
+      return null;
+    }
+    const base = newPrintLayer(art.print.layers.length);
+    const name = INK_PALETTE.find((x) => x.color.toLowerCase() === c.toLowerCase())?.name ?? "Custom";
+    return { ...base, color: c, name };
+  };
+
   /** Picks the ink with this color, creating one if needed (paint mode). */
   const pickPaintColor = (c: string) => {
-    const hit = art.print.layers.find((l) => l.color.toLowerCase() === c.toLowerCase());
+    const hit = inkOfColor(c);
     if (hit) {
       setActivePrint(hit.id);
       return;
     }
-    if (art.print.layers.length >= MAX_PRINT_LAYERS) {
-      toast(t("You can use up to {MAX_PRINT_LAYERS} ink colors. Pick one you already used.", { MAX_PRINT_LAYERS }), "error");
-      return;
-    }
-    const base = newPrintLayer(art.print.layers.length);
-    const name = INK_PALETTE.find((x) => x.color.toLowerCase() === c.toLowerCase())?.name ?? "Custom";
-    const p: PrintLayer = { ...base, color: c, name };
+    const p = newInkOfColor(c);
+    if (!p) return;
     change((a) => ({ ...a, print: { enabled: true, layers: [...a.print.layers, p] } }));
     setActivePrint(p.id);
   };
@@ -517,25 +516,6 @@ export function CreateEditor({
     if (!on) return;
     if (!art.print.enabled) change((a) => ({ ...a, print: { ...a.print, enabled: true } }));
     if (!pLayer) pickPaintColor(art.print.layers[0]?.color ?? INK_PALETTE[2].color);
-    if (maskTool === "lassoAdd" || maskTool === "lassoSub") setMaskTool("brush");
-  };
-
-  /** Persists several masks and records them as one undo step. */
-  const commitMasks = async (layers: PrintLayer[]) => {
-    try {
-      const ids = new Map<string, string>();
-      for (const p of layers) {
-        const c = rtRef.current?.printMasks.get(p.id);
-        if (c) ids.set(p.id, await persistMask(c, p.name));
-      }
-      change((a) => ({
-        ...a,
-        print: { ...a.print, layers: a.print.layers.map((l) => (ids.has(l.id) ? { ...l, maskAssetId: ids.get(l.id) as string } : l)) },
-      }));
-      setRtTick((t) => t + 1);
-    } catch (err) {
-      toast(describeError(err), "error");
-    }
   };
 
   /** The sketch, drawn faintly over the print preview as a guide while painting inks. */
@@ -548,17 +528,33 @@ export function CreateEditor({
   /* ---------- drawing objects ---------- */
 
   const drawLayer = layer?.kind === "draw" ? layer : null;
-  const selStroke = (drawLayer && selectedObj ? drawLayer.strokes.find((x) => x.id === selectedObj) : null) ?? null;
+  /** What the drawing tools edit: the active sketch layer, or the active ink while printing. */
+  const owner: { kind: "layer" | "ink"; id: string; strokes: Stroke[] } | null =
+    step === "print"
+      ? pLayer && art.print.enabled
+        ? { kind: "ink", id: pLayer.id, strokes: pLayer.strokes ?? [] }
+        : null
+      : drawLayer
+        ? { kind: "layer", id: drawLayer.id, strokes: drawLayer.strokes }
+        : null;
+  const selStroke = (owner && selectedObj ? owner.strokes.find((x) => x.id === selectedObj) : null) ?? null;
   const selBox: Box | null = selStroke
     ? !selStroke.shape && objDrag.current && objDrag.current.orig.id === selStroke.id
       ? dragBox.current
       : strokeBox(selStroke)
     : null;
 
-  /** Applies fn to the active draw layer's strokes. */
+  /** Applies fn to the strokes of the active sketch layer (or ink, while printing). */
   const editStrokes = (fn: (s: Stroke[]) => Stroke[], mode: "discrete" | "continuous" | "end" = "discrete") => {
-    if (!drawLayer) return;
-    const id = drawLayer.id;
+    if (!owner) return;
+    const id = owner.id;
+    if (owner.kind === "ink") {
+      change(
+        (a) => ({ ...a, print: { ...a.print, layers: a.print.layers.map((l) => (l.id === id ? { ...l, strokes: fn(l.strokes ?? []) } : l)) } }),
+        mode,
+      );
+      return;
+    }
     change((a) => ({ ...a, layers: a.layers.map((l) => (l.id === id && l.kind === "draw" ? { ...l, strokes: fn(l.strokes) } : l)) }), mode);
   };
   const addStrokes = (list: Stroke[]) => editStrokes((s) => [...s, ...list]);
@@ -567,25 +563,45 @@ export function CreateEditor({
 
   /** Two history steps for corrections, so Undo first returns to the raw freehand. */
   const onInk = (r: SessionResult) => {
-    if (!r || !drawLayer) return;
-    const id = drawLayer.id;
+    if (!r || !owner) return;
+    if (step === "print" && paintMode && r.kind === "freehand" && r.stroke.mode === "erase") {
+      // Paint mode: the eraser clears every ink under it.
+      const st = r.stroke;
+      change((a) => ({
+        ...a,
+        print: { ...a.print, layers: a.print.layers.map((l) => ({ ...l, strokes: [...(l.strokes ?? []), { ...st, id: newId("st") }] })) },
+      }));
+      return;
+    }
     if (r.kind === "freehand") {
       addStrokes([r.stroke]);
-      if (r.smoothed) {
-        const sm = r.smoothed;
-        change((a) => ({ ...a, layers: a.layers.map((l) => (l.id === id && l.kind === "draw" ? { ...l, strokes: l.strokes.map((x) => (x.id === sm.id ? sm : x)) } : l)) }));
-      }
+      if (r.smoothed) replaceStroke(r.smoothed);
       return;
     }
     addStrokes([r.raw]);
     const raw = r.raw;
     const shape = r.shape;
-    change((a) => ({ ...a, layers: a.layers.map((l) => (l.id === id && l.kind === "draw" ? { ...l, strokes: l.strokes.map((x) => (x.id === raw.id ? shape : x)) } : l)) }));
+    editStrokes((s) => s.map((x) => (x.id === raw.id ? shape : x)));
   };
 
   const selectAt = (x: number, y: number) => {
-    if (!drawLayer) return;
     const tol = 10 * (ART_W / Math.max(1, canvasSize));
+    if (step === "print") {
+      // The active ink first, then the others from the top.
+      const rest = art.print.layers.filter((l) => l.id !== pLayer?.id).reverse();
+      for (const l of pLayer ? [pLayer, ...rest] : rest) {
+        if (!l.visible) continue;
+        const hit = pickStroke(l.strokes ?? [], x, y, tol);
+        if (hit) {
+          setActivePrint(l.id);
+          setSelectedObj(hit.id);
+          return;
+        }
+      }
+      setSelectedObj(null);
+      return;
+    }
+    if (!drawLayer) return;
     setSelectedObj(pickStroke(drawLayer.strokes, x, y, tol)?.id ?? null);
   };
 
@@ -621,6 +637,38 @@ export function CreateEditor({
     setSelectedObj(copy.id);
   };
 
+  /** Print color pick: moves the selection to that color's ink in paint mode, else recolors the ink. */
+  const pickInkColor = (c: string) => {
+    if (!paintMode) {
+      if (pLayer) setPrintLayer({ ...pLayer, color: c });
+      else pickPaintColor(c);
+      return;
+    }
+    if (!selStroke || !pLayer) {
+      pickPaintColor(c);
+      return;
+    }
+    const st = selStroke;
+    const from = pLayer.id;
+    const hit = inkOfColor(c);
+    if (hit?.id === from) return;
+    const target = hit ?? newInkOfColor(c);
+    if (!target) return;
+    change((a) => {
+      const layers = a.print.layers.map((l) => (l.id === from ? { ...l, strokes: (l.strokes ?? []).filter((x) => x.id !== st.id) } : l));
+      return {
+        ...a,
+        print: {
+          enabled: true,
+          layers: hit
+            ? layers.map((l) => (l.id === hit.id ? { ...l, strokes: [...(l.strokes ?? []), st] } : l))
+            : [...layers, { ...target, strokes: [st] }],
+        },
+      };
+    });
+    setActivePrint(target.id);
+  };
+
   const deleteSelection = () => {
     if (!selStroke) return;
     const id = selStroke.id;
@@ -637,18 +685,10 @@ export function CreateEditor({
     else if (drawTool === "shape") tool = { kind: "shape", style: shapeStyle(prefs, color) };
     else if (drawTool === "select") tool = { kind: "select" };
     else tool = { kind: "ink", cfg: inkConfig(prefs, drawTool, color) };
-  } else if (step === "print" && pLayer && rt) {
-    const c = rt.printMasks.get(pLayer.id);
-    if (c && (maskTool === "brush" || maskTool === "erase")) {
-      const also =
-        paintMode && maskTool === "erase"
-          ? art.print.layers.filter((l) => l.id !== pLayer.id).map((l) => rt.printMasks.get(l.id)).filter((m): m is HTMLCanvasElement => Boolean(m))
-          : undefined;
-      const ink = inkConfig(printPrefs, maskTool === "erase" ? "eraser" : "brush", pLayer.color, "#ffffff");
-      tool = { kind: "maskBrush", canvas: c, ink, also };
-    } else if (c) {
-      tool = { kind: "lasso", purpose: maskTool === "lassoAdd" ? "maskAdd" : "maskSub" };
-    }
+  } else if (step === "print") {
+    if (printTool === "select") tool = { kind: "select" };
+    else if (pLayer && printTool === "shape") tool = { kind: "shape", style: shapeStyle({ ...printPrefs, fillColor: pLayer.color }, pLayer.color) };
+    else if (pLayer) tool = { kind: "ink", cfg: inkConfig(printPrefs, printTool, pLayer.color, "#ffffff") };
   } else if (step === "sticker" && preview === "crop" && art.sticker.crop.kind === "manual") {
     tool = { kind: "lasso", purpose: "crop" };
   } else if (step === "sticker" && preview === "crop") {
@@ -680,7 +720,7 @@ export function CreateEditor({
       ctx.globalAlpha = 1;
     }
     if (step === "print" && pLayer && rt) {
-      const m = rt.printMasks.get(pLayer.id);
+      const m = inkMask(rt, pLayer);
       if (!m) return;
       const tint = createCanvas(ART_W, ART_H);
       const t = ctx2d(tint);
@@ -723,7 +763,7 @@ export function CreateEditor({
 
   const overlayKey = `${guide}|${guideCanvas ? 1 : 0}|${step}|${activeLayer}|${activePrint}|${printView}|${preview}|${rtTick}|${JSON.stringify(
     step === "draw" && layer?.kind === "image" ? [layer.x, layer.y, layer.scale, layer.rot, layer.crop] : null,
-  )}|${step === "sticker" ? JSON.stringify(art.sticker.crop) : ""}|${pLayer?.color}`;
+  )}|${step === "sticker" ? JSON.stringify(art.sticker.crop) : ""}|${pLayer?.color}|${strokesVersion(pLayer?.strokes)}`;
 
   /* ---------- layout ---------- */
 
@@ -739,6 +779,7 @@ export function CreateEditor({
   };
   const goStep = (id: Step) => {
     setPop(null);
+    setSelectedObj(null);
     setStep(id);
   };
   const popIgnore = [adjustRef];
@@ -810,7 +851,7 @@ export function CreateEditor({
                 setSelectedObj(st.id);
               }}
               onTap={selectAt}
-              selection={step === "draw" && selBox ? { box: selBox, rotatable: true } : null}
+              selection={(step === "draw" || step === "print") && selBox ? { box: selBox, rotatable: true } : null}
               onSelectionDrag={dragSelection}
               onDragStart={(x, y) => {
                 if (step !== "sticker") return;
@@ -837,17 +878,10 @@ export function CreateEditor({
                 setLayer(imgLayer.id, { x: o.x + dx, y: o.y + dy }, done ? "end" : "continuous");
                 if (done) imgDragOrigin.current = null;
               }}
-              onMaskEnd={() => {
-                if (!pLayer) return;
-                if (paintMode && maskTool === "erase") void commitMasks(art.print.layers);
-                else void commitMask(pLayer);
-              }}
               onLasso={(poly) => {
                 if (tool.kind !== "lasso") return;
                 if (tool.purpose === "crop") {
                   setSticker({ ...art.sticker, crop: { ...art.sticker.crop, poly: poly.map((v) => Math.round(v)) } });
-                } else {
-                  lassoMask(poly, tool.purpose === "maskAdd");
                 }
               }}
             />
@@ -866,8 +900,8 @@ export function CreateEditor({
               {layer.name}
             </button>
           ) : null}
-          {step === "draw" && selStroke ? (
-            <div className="float-group float-tc" role="toolbar" aria-label={t("Selection")}>
+          {(step === "draw" || step === "print") && selStroke ? (
+            <div className={`float-group float-tc${step === "print" ? " is-below" : ""}`} role="toolbar" aria-label={t("Selection")}>
               <button type="button" className="icon-btn" aria-label={t("Duplicate")} onClick={duplicateSelection}>
                 <Icon name="copy" />
               </button>
@@ -1027,77 +1061,39 @@ export function CreateEditor({
         {step === "print" ? (
           <>
             <StudioBar>
-              <div className="studio-tools is-tight">
-                {MASK_TOOLS.map((mt) => (
-                  <ToolButton
-                    key={mt.id}
-                    icon={mt.id === "brush" ? BRUSH_ICON[printPrefs.brush] : mt.icon}
-                    label={t(mt.label)}
-                    active={maskTool === mt.id}
-                    disabled={!pLayer || !art.print.enabled}
-                    btnRef={(el) => {
-                      toolRefs.current[`m-${mt.id}`] = el;
-                    }}
-                    onClick={() => {
-                      if (mt.id === maskTool && mt.id === "brush") {
-                        setPop(null);
-                        setPrintBrushOpen(true);
-                      } else if (mt.id === maskTool && mt.id === "erase") {
-                        setPop(pop === "maskSize" ? null : "maskSize");
-                      } else {
-                        setMaskTool(mt.id);
-                        setPop(null);
-                      }
-                    }}
-                  />
-                ))}
-              </div>
-              <div className="studio-sep" />
-              <div className="studio-right" style={{ gap: 0 }}>
-                <button
-                  ref={maskSizeRef}
-                  type="button"
-                  className="st-tool"
-                  aria-label={t("Brush size {brushSize}", { brushSize })}
-                  title={t("Brush size")}
-                  disabled={!pLayer || !art.print.enabled}
-                  onClick={() => setPop(pop === "maskSize" ? null : "maskSize")}
-                >
-                  <span className="size-glyph">
-                    <span style={{ width: Math.max(3, Math.min(20, brushSize / 7)), height: Math.max(3, Math.min(20, brushSize / 7)) }} />
-                  </span>
-                </button>
-                <ColorButton
-                  color={pLayer?.color ?? "#c8c8c8"}
-                  disabled={!pLayer && !paintMode}
-                  btnRef={inkColorRef}
-                  onClick={() => (pLayer || paintMode) && setPop(pop === "inkColor" ? null : "inkColor")}
-                />
-                <ToolButton icon="layers" label={t("Inks")} count={art.print.layers.length} onClick={() => { setPop(null); setInksOpen(true); }} />
-                <ToolButton icon="sliders" label={t("Print settings")} disabled={!pLayer} onClick={() => { setPop(null); setParamsOpen(true); }} />
-              </div>
+              <DrawBar
+                tool={printTool}
+                onTool={(tl) => {
+                  setPrintTool(tl);
+                  if (tl === "brush" || tl === "eraser") setSelectedObj(null);
+                }}
+                tools={["brush", "eraser", "shape", "select"]}
+                prefs={printPrefs}
+                onPrefs={setPrintPrefs}
+                color={pLayer?.color ?? "#c8c8c8"}
+                onColor={pickInkColor}
+                palette={INK_PALETTE.map((c) => ({ value: c.color, label: t(c.name) }))}
+                paletteTitle={t("Ink color")}
+                monochrome
+                disabled={!art.print.enabled}
+                selection={selStroke}
+                onSelectionStyle={styleSelection}
+                popBottom={88}
+                right={
+                  <>
+                    <ToolButton icon="layers" label={t("Inks")} count={art.print.layers.length} onClick={() => { setPop(null); setInksOpen(true); }} />
+                    <ToolButton icon="sliders" label={t("Print settings")} disabled={!pLayer} onClick={() => { setPop(null); setParamsOpen(true); }} />
+                  </>
+                }
+              />
             </StudioBar>
-            <MaskSizePopover
-              open={pop === "maskSize"}
-              onClose={() => setPop(null)}
-              size={brushSize}
-              onSize={setBrushSize}
-              ignore={[maskSizeRef, ...MASK_TOOLS.map((t) => ({ get current() { return toolRefs.current[`m-${t.id}`] ?? null; } }))]}
-            />
-            <BrushSettingsSheet
-              open={printBrushOpen}
-              onClose={() => setPrintBrushOpen(false)}
-              prefs={printPrefs}
-              color={pLayer?.color ?? "#1b1b1b"}
-              onBrush={(brush) => setPrintPrefs({ brush })}
-              onPrefs={setPrintPrefs}
-            />
+            {/* Opened from the Inks sheet's color action. */}
             <InkColorPopover
-              open={pop === "inkColor" && (pLayer !== null || paintMode)}
+              open={pop === "inkColor" && pLayer !== null}
               onClose={() => setPop(null)}
               color={pLayer?.color ?? ""}
-              onPick={(c) => (paintMode ? pickPaintColor(c) : pLayer && setPrintLayer({ ...pLayer, color: c }))}
-              ignore={[inkColorRef]}
+              onPick={(c) => pLayer && setPrintLayer({ ...pLayer, color: c })}
+              ignore={[]}
             />
           </>
         ) : null}

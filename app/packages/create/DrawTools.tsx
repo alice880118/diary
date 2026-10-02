@@ -379,6 +379,7 @@ export function FillPopover({
   onChange,
   ignore,
   bottom,
+  monochrome,
 }: {
   open: boolean;
   onClose: () => void;
@@ -386,6 +387,8 @@ export function FillPopover({
   onChange: (patch: Partial<FillState>, continuous?: boolean) => void;
   ignore: React.RefObject<HTMLElement | null>[];
   bottom?: number | string;
+  /** One color for everything (print inks): hide the fill / stroke color rows. */
+  monochrome?: boolean;
 }) {
   const fillOn = state.fill.kind !== "none";
   const colors = SKETCH_COLORS.concat(["#ff6b42", "#173b59"]).map((c) => ({ value: c, label: c }));
@@ -402,7 +405,7 @@ export function FillPopover({
             onChange={(e) => onChange({ fill: e.target.checked ? { kind: "solid", color: state.fillColor } : { kind: "none" } })}
           />
         </label>
-        {fillOn ? (
+        {fillOn && !monochrome ? (
           <div className="palette is-compact" style={{ marginTop: 8 }}>
             <ColorDots colors={colors} value={state.fillColor} onChange={(c) => onChange({ fillColor: c, fill: { kind: "solid", color: c } })} />
           </div>
@@ -414,9 +417,11 @@ export function FillPopover({
         </label>
         {state.outline ? (
           <>
-            <div className="palette is-compact" style={{ marginTop: 8 }}>
-              <ColorDots colors={colors} value={state.strokeColor} onChange={(c) => onChange({ strokeColor: c })} />
-            </div>
+            {monochrome ? null : (
+              <div className="palette is-compact" style={{ marginTop: 8 }}>
+                <ColorDots colors={colors} value={state.strokeColor} onChange={(c) => onChange({ strokeColor: c })} />
+              </div>
+            )}
             <Slider label={t("Stroke width")} icon="size" min={1} max={120} value={state.width} display={String(state.width)} onChange={(v) => onChange({ width: v }, true)} onEnd={() => onChange({}, false)} />
             <div className="chip-row">
               {BRUSHES.map((d) => (
@@ -455,6 +460,10 @@ export function DrawBar({
   onSelectionStyle,
   right,
   popBottom,
+  palette,
+  paletteTitle,
+  monochrome,
+  disabled,
 }: {
   tool: DrawTool;
   onTool: (t: DrawTool) => void;
@@ -469,6 +478,12 @@ export function DrawBar({
   /** Extra buttons at the right end (Layers, Done). */
   right?: ReactNode;
   popBottom?: number | string;
+  /** Colors offered by the color button (default: sketch colors). */
+  palette?: { value: string; label: string }[];
+  paletteTitle?: string;
+  /** Shapes fill with the current color (print inks); no separate fill / stroke colors. */
+  monochrome?: boolean;
+  disabled?: boolean;
 }) {
   const [pop, setPop] = useState<"size" | "palette" | "shapes" | "fill" | null>(null);
   const [brushOpen, setBrushOpen] = useState(false);
@@ -491,7 +506,7 @@ export function DrawBar({
   const erase = tool === "eraser" && !sel;
   const sizeKey: BrushKind | "eraser" = erase ? "eraser" : prefs.brush;
   const size = sel ? sel.width : prefs.sizes[sizeKey];
-  const shownColor = sel ? sel.color : color;
+  const shownColor = sel && !monochrome ? sel.color : color;
 
   const setSize = (v: number, continuous?: boolean) => {
     if (sel) onSelectionStyle({ width: v }, continuous);
@@ -501,15 +516,15 @@ export function DrawBar({
   const fillState: FillState = sel
     ? {
         fill: sel.fill ?? { kind: "none" },
-        fillColor: sel.fill?.kind === "solid" ? sel.fill.color : prefs.fillColor,
+        fillColor: monochrome ? color : sel.fill?.kind === "solid" ? sel.fill.color : prefs.fillColor,
         outline: sel.outline !== false,
-        strokeColor: sel.color,
+        strokeColor: monochrome ? color : sel.color,
         width: sel.width,
         brush: sel.brush,
       }
     : {
-        fill: prefs.fillOn ? { kind: "solid", color: prefs.fillColor } : { kind: "none" },
-        fillColor: prefs.fillColor,
+        fill: prefs.fillOn ? { kind: "solid", color: monochrome ? color : prefs.fillColor } : { kind: "none" },
+        fillColor: monochrome ? color : prefs.fillColor,
         outline: prefs.outlineOn,
         strokeColor: color,
         width: prefs.sizes[prefs.brush],
@@ -530,6 +545,7 @@ export function DrawBar({
         iconNode={tl === "shape" ? <ShapeIcon type={prefs.shape} /> : undefined}
         label={t(meta[tl].label)}
         active={tool === tl}
+        disabled={disabled}
         btnRef={(el) => {
           refs.current[tl] = el;
         }}
@@ -553,13 +569,13 @@ export function DrawBar({
       </div>
       <div className="studio-sep" />
       <div className="studio-right" style={{ gap: 2 }}>
-        <ColorButton color={shownColor} disabled={erase} btnRef={colorRef} onClick={() => setPop(pop === "palette" ? null : "palette")} />
+        <ColorButton color={shownColor} disabled={erase || disabled} btnRef={colorRef} onClick={() => setPop(pop === "palette" ? null : "palette")} />
         {fillMode ? (
-          <button ref={sizeRef} type="button" className="st-tool" aria-label={t("Fill and stroke")} title={t("Fill and stroke")} onClick={() => setPop(pop === "fill" ? null : "fill")}>
+          <button ref={sizeRef} type="button" className="st-tool" disabled={disabled} aria-label={t("Fill and stroke")} title={t("Fill and stroke")} onClick={() => setPop(pop === "fill" ? null : "fill")}>
             <span className="fill-glyph" style={{ background: fillState.fill.kind === "solid" ? fillState.fillColor : "transparent", borderColor: fillState.outline ? fillState.strokeColor : "#c8c8c8" }} />
           </button>
         ) : (
-          <button ref={sizeRef} type="button" className="st-tool" aria-label={`Size ${size}`} title={t("Size")} onClick={() => setPop(pop === "size" ? null : "size")}>
+          <button ref={sizeRef} type="button" className="st-tool" disabled={disabled} aria-label={`Size ${size}`} title={t("Size")} onClick={() => setPop(pop === "size" ? null : "size")}>
             <span className="size-glyph">
               <span style={{ width: Math.max(3, Math.min(20, size / 2.5)), height: Math.max(3, Math.min(20, size / 2.5)) }} />
             </span>
@@ -583,9 +599,11 @@ export function DrawBar({
         open={pop === "palette"}
         onClose={() => setPop(null)}
         color={shownColor}
+        colors={palette}
+        title={paletteTitle}
         onPick={(c) => {
           onColor(c);
-          if (sel) onSelectionStyle({ color: c });
+          if (sel && !monochrome) onSelectionStyle({ color: c });
           if (tool === "eraser") onTool("brush");
         }}
         ignore={ignore}
@@ -598,6 +616,7 @@ export function DrawBar({
         state={fillState}
         ignore={ignore}
         bottom={popBottom}
+        monochrome={monochrome}
         onChange={(patch, continuous) => {
           const prefPatch: Partial<DrawPrefs> = {};
           const style: StylePatch = {};

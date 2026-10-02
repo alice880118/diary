@@ -1,5 +1,5 @@
-import { ART_H, ART_W, type Artwork, type ImageLayer, type PrintLayer } from "../db/types";
-import { drawStrokes } from "../drawing/strokes";
+import { ART_H, ART_W, type Artwork, type ImageLayer, type PrintLayer, type Stroke } from "../db/types";
+import { drawStroke, drawStrokes } from "../drawing/strokes";
 import { fbm, smoothstep, valueNoise } from "../textures/noise";
 import { shadeTexture, textureHeight, textureScaleOf } from "../textures/render";
 import { createCanvas, ctx2d, maskHasContent, type ArtRuntime } from "./runtime";
@@ -111,8 +111,30 @@ export interface InkPlane {
   rgb: [number, number, number];
 }
 
+/** An ink's stroke as coverage: everything it paints counts as fully white. */
+export function coverageStroke(s: Stroke): Stroke {
+  return { ...s, color: "#ffffff", fill: s.fill?.kind === "solid" ? { kind: "solid", color: "#ffffff" } : s.fill };
+}
+
+const inkCache = new WeakMap<Stroke[], { base: HTMLCanvasElement; asset: string; out: HTMLCanvasElement }>();
+
+/** Where an ink prints: its raster mask plus its editable strokes on top. */
+export function inkMask(rt: ArtRuntime, p: PrintLayer): HTMLCanvasElement | undefined {
+  const base = rt.printMasks.get(p.id);
+  if (!base || !p.strokes?.length) return base;
+  const asset = base.dataset.asset ?? "";
+  const hit = inkCache.get(p.strokes);
+  if (hit && hit.base === base && hit.asset === asset) return hit.out;
+  const out = createCanvas(ART_W, ART_H);
+  const ctx = ctx2d(out);
+  ctx.drawImage(base, 0, 0, ART_W, ART_H);
+  for (const s of p.strokes) drawStroke(ctx, coverageStroke(s));
+  inkCache.set(p.strokes, { base, asset, out });
+  return out;
+}
+
 export function usablePrintLayers(art: Artwork, rt: ArtRuntime) {
-  return art.print.layers.filter((p) => p.visible && maskHasContent(rt.printMasks.get(p.id)));
+  return art.print.layers.filter((p) => p.visible && maskHasContent(inkMask(rt, p)));
 }
 
 export function usesPrint(art: Artwork, rt: ArtRuntime) {
@@ -127,7 +149,7 @@ export function inkPlanes(art: Artwork, rt: ArtRuntime, scale: number, only?: st
   const t = ctx2d(tmp);
   for (const p of art.print.layers) {
     if (only ? p.id !== only : !p.visible) continue;
-    const mask = rt.printMasks.get(p.id);
+    const mask = inkMask(rt, p);
     if (!mask || !maskHasContent(mask)) continue;
     t.clearRect(0, 0, w, h);
     t.imageSmoothingEnabled = true;

@@ -775,6 +775,11 @@ input[type="checkbox"].toggle:checked::after {
   transform: translateX(-50%);
 }
 
+/* Print keeps its Paint switch and view menu on the top row. */
+.float-tc.is-below {
+  top: 64px;
+}
+
 .brush-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
