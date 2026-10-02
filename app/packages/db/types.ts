@@ -413,9 +413,14 @@ export type BoardTexture = "smooth" | "grain" | "paper";
 
 export interface BoardItem {
   id: string;
-  source: "preset" | "sticker";
+  /** "doodle" = a drawing made on the board (optional, added later). */
+  source: "preset" | "sticker" | "doodle";
   /** Built-in sticker id when source is "preset". */
   presetId?: string;
+  /** Doodle strokes in their own box (dw x dh board units) when source is "doodle". */
+  strokes?: Stroke[];
+  dw?: number;
+  dh?: number;
   /** Rendered sticker version when source is "sticker" (library deletes don't affect it). */
   snap?: StickerSnap;
   /** Center and width as fractions of the board width (0..1). */

@@ -31,3 +31,15 @@ test("bounces lose energy", () => {
   const [n] = step([b], 1 / 60, world);
   assert.ok(n.vx < 0 && Math.abs(n.vx) < 300 * 0.6, "reflected with loss");
 });
+
+test("tilting the right edge down makes stickers fall right (spec and iOS signs)", async () => {
+  const { motionReader } = await import("../app/packages/home/stickerPhysics.ts");
+  const ev = (x: number, y: number, z: number) => ({ accelerationIncludingGravity: { x, y, z }, acceleration: { x: 0, y: 0, z: 0 } }) as unknown as DeviceMotionEvent;
+  const android = motionReader(false)(ev(-3.5, 0, 9.2));
+  assert.ok(android && android.gravity.x > 3, `android ${android?.gravity.x}`);
+  const ios = motionReader(true)(ev(3.5, 0, -9.2));
+  assert.ok(ios && ios.gravity.x > 3, `ios ${ios?.gravity.x}`);
+  // Held upright: things fall toward the bottom of the screen.
+  const up = motionReader(false)(ev(0, 9.81, 0));
+  assert.ok(up && up.gravity.y > 9, `upright ${up?.gravity.y}`);
+});

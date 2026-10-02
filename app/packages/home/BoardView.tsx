@@ -6,8 +6,36 @@ import { t } from "../i18n";
 import { fillCss } from "../shell/FillPicker";
 import { Icon } from "../shell/Icon";
 import { StickerArt } from "../sticker/StickerArt";
+import { hitStroke } from "../drawing/objectOps";
 import { PresetArt, presetById } from "./presets";
-import { PHYSICS, kick, requestMotionPermission, shakeDetector, step, type Body, type Rect, type World } from "./stickerPhysics";
+import {
+  PHYSICS,
+  isIOSDevice,
+  kick,
+  motionReader,
+  nudge,
+  requestMotionPermission,
+  step,
+  type Body,
+  type MotionSample,
+  type Rect,
+  type Vec,
+  type World,
+} from "./stickerPhysics";
+
+/** Phone motion tuning: gentle sways from small movements. */
+const MOTION = {
+  /** Phone acceleration (m/s², gravity removed) that counts as a shake. */
+  joltThreshold: 1.1,
+  /** Tilt change (m/s² of gravity on screen, ~5°) that wakes the stickers. */
+  tiltThreshold: 0.9,
+  /** Velocity change (board units/s) per m/s² of phone acceleration, per event. */
+  joltImpulse: 9,
+  /** Downhill acceleration (board units/s²) per m/s² of tilt. */
+  tiltForce: 24,
+  /** Stickers settle once the phone has been still this long. */
+  quietMs: 900,
+};
 
 export type BoardMode = "stickers" | "doodle";
 
@@ -48,6 +76,7 @@ const TEXTURE: Record<string, string | undefined> = {
 
 export function itemRatio(it: BoardItem) {
   if (it.source === "sticker" && it.snap) return it.snap.h / Math.max(1, it.snap.w);
+  if (it.source === "doodle" && it.dw && it.dh) return it.dh / it.dw;
   return presetById(it.presetId)?.ratio ?? 1;
 }
 
@@ -58,7 +87,14 @@ function boxOf(it: BoardItem) {
   return { cx: it.x * BOARD_W, cy: it.y * BOARD_W, w, h };
 }
 
-function ItemArt({ it, w, h }: { it: BoardItem; w: number; h: number }) {
+function ItemArt({ it, w, h, px }: { it: BoardItem; w: number; h: number; px: number }) {
+  if (it.source === "doodle" && it.strokes && it.dw && it.dh) {
+    return (
+      <div style={{ position: "absolute", left: 0, top: 0, width: it.dw, height: it.dh, transform: `scale(${w / it.dw})`, transformOrigin: "0 0" }}>
+        <StrokeCanvas strokes={it.strokes} w={it.dw} h={it.dh} pixelWidth={w * px} />
+      </div>
+    );
+  }
   if (it.source === "sticker" && it.snap) {
     const s = it.snap;
     return <StickerArt artAssetId={s.artAssetId} shapeAssetId={s.shapeAssetId} material={s.material} w={w} h={h} angle={s.holoAngle + it.rot} />;
@@ -125,7 +161,6 @@ export function BoardView({
   /** Positions just committed by an interrupted scatter, until the board prop catches up. */
   const pending = useRef<Map<string, BoardItem> | null>(null);
   const tap = useRef<{ x: number; y: number; t: number } | null>(null);
-  const motionAsked = useRef(false);
 
   useEffect(() => {
     pending.current = null;
@@ -196,18 +231,31 @@ export function BoardView({
     onCommit((bd) => ({ ...bd, items: bd.items.map((it) => moved.get(it.id) ?? it) }));
   };
 
-  const scatter = () => {
-    if (mode !== "stickers" || physics.current || gesture.current.kind !== "none") return;
+  /** Latest phone motion: tilt (gravity on screen) and when the phone last moved. */
+  const motion = useRef<{ gravity: Vec; settledGravity: Vec | null; lastMove: number }>({ gravity: { x: 0, y: 0 }, settledGravity: null, lastMove: 0 });
+
+  /** Floats the stickers and runs the simulation; `prepare` sets their starting velocities. */
+  const runPhysics = (prepare: (bodies: Body[]) => Body[]) => {
+    if (mode !== "stickers" || gesture.current.kind !== "none") return;
+    if (physics.current) {
+      // Already floating: wake everything with the new push.
+      const ph = physics.current;
+      ph.bodies = prepare(ph.bodies);
+      ph.t0 = performance.now();
+      for (const b of ph.bodies) setLift(b.id, true);
+      return;
+    }
     const world = worldNow();
     if (!world) return;
     onSelect(null);
-    const bodies = board.items
+    const start = board.items
       .filter((it) => !(it.source === "preset" && presetById(it.presetId)?.flat))
       .map((it) => {
         const b = boxOf(it);
-        return kick({ id: it.id, cx: b.cx, cy: b.cy, w: b.w, h: b.h, rot: it.rot, vx: 0, vy: 0, vr: 0, settled: false });
+        return { id: it.id, cx: b.cx, cy: b.cy, w: b.w, h: b.h, rot: it.rot, vx: 0, vy: 0, vr: 0, settled: false };
       });
-    if (!bodies.length) return;
+    if (!start.length) return;
+    const bodies = prepare(start);
     for (const b of bodies) setLift(b.id, true);
     setScattering(true);
     const tick = (now: number) => {
@@ -215,14 +263,19 @@ export function BoardView({
       if (!ph) return;
       const dt = Math.min(0.033, (now - ph.last) / 1000);
       ph.last = now;
+      const m = motion.current;
+      const moving = now - m.lastMove < MOTION.quietMs;
+      // Tilt pulls the stickers "downhill" only while the phone is moving.
+      const force = moving ? { x: m.gravity.x * MOTION.tiltForce, y: m.gravity.y * MOTION.tiltForce } : { x: 0, y: 0 };
       const before = new Set(ph.bodies.filter((b) => b.settled).map((b) => b.id));
-      ph.bodies = step(ph.bodies, dt, world);
+      ph.bodies = step(ph.bodies, dt, world, force, !moving);
       for (const b of ph.bodies) {
         paint(b);
         // Each sticker drops back onto the paper as soon as it comes to rest.
         if (b.settled && !before.has(b.id)) setLift(b.id, false);
       }
-      if (ph.bodies.every((b) => b.settled) || now - ph.t0 > PHYSICS.maxSeconds * 1000) {
+      if ((!moving && ph.bodies.every((b) => b.settled)) || now - ph.t0 > PHYSICS.maxSeconds * 1000) {
+        m.settledGravity = m.gravity;
         endScatter();
         return;
       }
@@ -231,20 +284,63 @@ export function BoardView({
     const now = performance.now();
     physics.current = { bodies, raf: requestAnimationFrame(tick), last: now, t0: now };
   };
-  const scatterRef = useRef(scatter);
-  scatterRef.current = scatter;
+
+  /** Tap on empty paper: random scatter. */
+  const scatter = () => runPhysics((bodies) => bodies.map((b) => kick(b)));
+
+  const onMotionSample = (sample: MotionSample) => {
+    const m = motion.current;
+    m.gravity = sample.gravity;
+    if (mode !== "stickers" || gesture.current.kind !== "none") return;
+    const jolt = Math.hypot(sample.linear.x, sample.linear.y);
+    const ref = m.settledGravity ?? sample.gravity;
+    m.settledGravity ??= sample.gravity;
+    const tilt = Math.hypot(sample.gravity.x - ref.x, sample.gravity.y - ref.y);
+    if (jolt < MOTION.joltThreshold && tilt < MOTION.tiltThreshold && !physics.current) return;
+    if (jolt >= MOTION.joltThreshold || tilt >= MOTION.tiltThreshold) m.lastMove = performance.now();
+    if (jolt >= MOTION.joltThreshold) {
+      // Stickers lag behind the phone: push opposite to its acceleration.
+      runPhysics((bodies) => nudge(bodies, { x: -sample.linear.x * MOTION.joltImpulse, y: -sample.linear.y * MOTION.joltImpulse }));
+    } else if (tilt >= MOTION.tiltThreshold) {
+      // Re-baseline so holding the phone at a new angle lets things settle.
+      m.settledGravity = sample.gravity;
+      runPhysics((bodies) => nudge(bodies, { x: 0, y: 0 }));
+    }
+  };
+  const onMotionRef = useRef(onMotionSample);
+  onMotionRef.current = onMotionSample;
 
   useEffect(() => () => {
     if (physics.current) cancelAnimationFrame(physics.current.raf);
   }, []);
 
-  // Shaking the phone scatters the stickers too.
+  // Moving or tilting the phone sways the stickers with it.
   useEffect(() => {
     if (mode !== "stickers" || typeof window === "undefined") return;
-    const onMotion = shakeDetector(() => scatterRef.current());
+    const read = motionReader(isIOSDevice());
+    const onMotion = (e: DeviceMotionEvent) => {
+      const sample = read(e);
+      if (sample) onMotionRef.current(sample);
+    };
     window.addEventListener("devicemotion", onMotion);
     return () => window.removeEventListener("devicemotion", onMotion);
   }, [mode]);
+
+  // iOS only grants motion events after a tap; ask on the first one (click/touchend count as user gestures).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const ask = () => {
+      void requestMotionPermission();
+      window.removeEventListener("touchend", ask);
+      window.removeEventListener("click", ask);
+    };
+    window.addEventListener("touchend", ask, { once: true });
+    window.addEventListener("click", ask, { once: true });
+    return () => {
+      window.removeEventListener("touchend", ask);
+      window.removeEventListener("click", ask);
+    };
+  }, []);
 
   const commitInk = (r: SessionResult) => {
     if (!r) return;
@@ -273,12 +369,20 @@ export function BoardView({
     const target = e.target as HTMLElement;
     const itemEl = target.closest<HTMLElement>("[data-item]");
     const handle = target.closest("[data-handle]");
-    if (!motionAsked.current) {
-      // iOS only grants motion events (for shake) from a user gesture.
-      motionAsked.current = true;
-      void requestMotionPermission();
-    }
-    if (mode === "stickers" && !itemEl && !handle && pointers.current.size === 0) {
+    const doodleMiss = (() => {
+      const it = itemEl?.dataset.item ? find(itemEl.dataset.item) : null;
+      if (!it || it.source !== "doodle" || !it.strokes || !it.dw) return false;
+      const b = boxOf(it);
+      const p0 = toBoard(e.clientX, e.clientY);
+      const r = (-it.rot * Math.PI) / 180;
+      const dx = p0.x - b.cx;
+      const dy = p0.y - b.cy;
+      const k = it.dw / b.w;
+      const lx = (dx * Math.cos(r) - dy * Math.sin(r)) * k + it.dw / 2;
+      const ly = (dx * Math.sin(r) + dy * Math.cos(r)) * k + (it.dh ?? 0) / 2;
+      return !it.strokes.some((st) => hitStroke(st, lx, ly, 14 * k));
+    })();
+    if (mode === "stickers" && (!itemEl || doodleMiss) && !handle && pointers.current.size === 0) {
       // Empty board: a tap deselects, or scatters the stickers when nothing is selected.
       tap.current = { x: e.clientX, y: e.clientY, t: performance.now() };
       return;
@@ -487,7 +591,7 @@ export function BoardView({
             >
               {/* Lift layer: peel-up scale / shadow, springs back when released. */}
               <div className={`board-lift${lifted === it.id ? " is-lifted" : ""}`}>
-                <ItemArt it={it} w={b.w} h={b.h} />
+                <ItemArt it={it} w={b.w} h={b.h} px={s} />
               </div>
             </div>
           );

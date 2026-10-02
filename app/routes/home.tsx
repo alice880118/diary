@@ -1,4 +1,5 @@
 import { useNavigate } from "@remix-run/react";
+import { strokeBounds, translateStroke } from "~/packages/drawing/strokes";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DrawBar, inkConfig, useDrawPrefs, type DrawTool } from "~/packages/create/DrawTools";
 import { useLive } from "~/packages/db/events";
@@ -98,6 +99,57 @@ export default function Home() {
 
   const ink = mode === "doodle" ? inkConfig(prefs, tool, color) : null;
 
+  // Strokes drawn in one doodle session become a single movable board item on Done.
+  const doodleBase = useRef<Set<string>>(new Set());
+  const startDoodle = () => {
+    doodleBase.current = new Set((board?.strokes ?? []).map((st) => st.id));
+    setSelected(null);
+    setMode("doodle");
+  };
+  const finishDoodle = () => {
+    setMode("stickers");
+    if (!board) return;
+    const fresh = board.strokes.filter((st) => !doodleBase.current.has(st.id));
+    const draws = fresh.filter((st) => st.mode === "draw");
+    if (!draws.length) return;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const st of draws) {
+      const b = strokeBounds(st);
+      minX = Math.min(minX, b.minX);
+      minY = Math.min(minY, b.minY);
+      maxX = Math.max(maxX, b.maxX);
+      maxY = Math.max(maxY, b.maxY);
+    }
+    const pad = 4;
+    const dw = Math.max(8, maxX - minX + pad * 2);
+    const dh = Math.max(8, maxY - minY + pad * 2);
+    const local = fresh.map((st) => translateStroke(st, pad - minX, pad - minY));
+    const freshIds = new Set(fresh.map((st) => st.id));
+    commit((b) => ({
+      ...b,
+      // Erasers also stay on the paper layer so they keep erasing older doodles there.
+      strokes: b.strokes.filter((st) => !freshIds.has(st.id) || st.mode === "erase"),
+      items: [
+        ...b.items,
+        {
+          id: newId("bi"),
+          source: "doodle",
+          strokes: local,
+          dw,
+          dh,
+          x: (minX - pad + dw / 2) / BOARD_W,
+          y: (minY - pad + dh / 2) / BOARD_W,
+          w: dw / BOARD_W,
+          rot: 0,
+          z: maxZ(b.items) + 1,
+        },
+      ],
+    }));
+  };
+
   return (
     <div className="screen home-screen" ref={frameRef}>
       <div className="board-scroll" ref={scrollRef}>
@@ -133,7 +185,7 @@ export default function Home() {
               <Icon name="redo" />
             </button>
           </div>
-          <button type="button" className="btn btn-primary home-done" onClick={() => setMode("stickers")}>
+          <button type="button" className="btn btn-primary home-done" onClick={finishDoodle}>
             {t("Done")}
           </button>
         </div>
@@ -141,7 +193,7 @@ export default function Home() {
         <div className="home-top">
           <div className="home-date">{formatDayChip(todayLocal())}</div>
           <div className="float-group">
-            <button type="button" className="icon-btn" aria-label={t("Doodle")} onClick={() => setMode("doodle")}>
+            <button type="button" className="icon-btn" aria-label={t("Doodle")} onClick={startDoodle}>
               <Icon name="pen" />
             </button>
             <button type="button" className="icon-btn" aria-label={t("Add sticker")} onClick={() => setSheet("add")}>
@@ -181,10 +233,11 @@ export default function Home() {
           onClose={() => setSheet(null)}
           onBg={setBg}
           onClearDoodles={() => {
-            const prev = board.strokes;
-            if (!prev.length) return;
-            commit((b) => ({ ...b, strokes: [] }));
-            toast(t("Doodles cleared"), "info", { label: t("Undo"), onClick: () => commit((b) => ({ ...b, strokes: prev })) });
+            const prev = { strokes: board.strokes, items: board.items };
+            if (!prev.strokes.length && !prev.items.some((it) => it.source === "doodle")) return;
+            commit((b) => ({ ...b, strokes: [], items: b.items.filter((it) => it.source !== "doodle") }));
+            setSelected(null);
+            toast(t("Doodles cleared"), "info", { label: t("Undo"), onClick: () => commit((b) => ({ ...b, ...prev })) });
           }}
           onResetStickers={() => {
             const prev = board.items;
@@ -318,7 +371,7 @@ function BoardSheet({
         <input type="checkbox" role="switch" className="toggle" checked={bg.shapes} onChange={(e) => onBg({ shapes: e.target.checked })} />
       </label>
       <div className="board-links">
-        <button type="button" className="menu-item is-danger" disabled={!board.strokes.length} onClick={onClearDoodles}>
+        <button type="button" className="menu-item is-danger" disabled={!board.strokes.length && !board.items.some((it) => it.source === "doodle")} onClick={onClearDoodles}>
           {t("Clear doodles")}
         </button>
         <button type="button" className="menu-item" onClick={onResetStickers}>

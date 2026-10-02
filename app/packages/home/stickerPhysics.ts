@@ -117,17 +117,85 @@ export function resolve(b: Body, world: World, bounce = true): Body {
   return { ...b, cx, cy, vx, vy };
 }
 
-/** Advances unsettled bodies by dt seconds. */
-export function step(bodies: Body[], dt: number, world: World): Body[] {
+export interface Vec {
+  x: number;
+  y: number;
+}
+
+/**
+ * Advances unsettled bodies by dt seconds. `force` is an acceleration applied
+ * to every body (e.g. phone tilt); while `canSettle` is false (the phone is
+ * still moving) slow bodies keep floating instead of dropping.
+ */
+export function step(bodies: Body[], dt: number, world: World, force: Vec = { x: 0, y: 0 }, canSettle = true): Body[] {
   const k = Math.exp(-PHYSICS.drag * dt);
   const kr = Math.exp(-PHYSICS.spinDrag * dt);
   return bodies.map((b) => {
     if (b.settled) return b;
-    let n: Body = { ...b, cx: b.cx + b.vx * dt, cy: b.cy + b.vy * dt, rot: b.rot + b.vr * dt, vx: b.vx * k, vy: b.vy * k, vr: b.vr * kr };
+    const vx = (b.vx + force.x * dt) * k;
+    const vy = (b.vy + force.y * dt) * k;
+    let n: Body = { ...b, cx: b.cx + vx * dt, cy: b.cy + vy * dt, rot: b.rot + b.vr * dt, vx, vy, vr: b.vr * kr };
     n = resolve(n, world);
-    if (Math.hypot(n.vx, n.vy) < PHYSICS.settleSpeed) n = { ...resolve(n, world, false), vx: 0, vy: 0, vr: 0, settled: true };
+    if (canSettle && Math.hypot(n.vx, n.vy) < PHYSICS.settleSpeed) n = { ...resolve(n, world, false), vx: 0, vy: 0, vr: 0, settled: true };
     return n;
   });
+}
+
+/** Adds a velocity change to every body (waking settled ones), capped to a gentle speed. */
+export function nudge(bodies: Body[], dv: Vec, rand = Math.random): Body[] {
+  const cap = PHYSICS.maxStart * 1.1;
+  return bodies.map((b) => {
+    // A little per-sticker variation so they don't move in lockstep.
+    const j = 0.75 + rand() * 0.5;
+    let vx = b.vx + dv.x * j;
+    let vy = b.vy + dv.y * j;
+    const v = Math.hypot(vx, vy);
+    if (v > cap) {
+      vx *= cap / v;
+      vy *= cap / v;
+    }
+    const vr = b.vr + (rand() * 2 - 1) * Math.min(40, Math.hypot(dv.x, dv.y) * 0.3);
+    return { ...b, vx, vy, vr, settled: false };
+  });
+}
+
+export interface MotionSample {
+  /** Direction things fall on screen (m/s², x right / y down). */
+  gravity: Vec;
+  /** The phone's own acceleration on screen, gravity removed (m/s²). */
+  linear: Vec;
+}
+
+/**
+ * Turns devicemotion events into screen-space vectors. iOS reports the
+ * opposite sign of the spec (Android), and the screen may be rotated.
+ */
+export function motionReader(isIOS: boolean) {
+  const sign = isIOS ? -1 : 1;
+  let g: Vec | null = null;
+  return (e: DeviceMotionEvent): MotionSample | null => {
+    const a = e.accelerationIncludingGravity;
+    if (!a || a.x == null || a.y == null) return null;
+    // Device frame -> screen frame (screen y points down).
+    const angle = (typeof screen !== "undefined" && screen.orientation?.angle) || 0;
+    const r = (angle * Math.PI) / 180;
+    const toScreen = (x: number, y: number): Vec => {
+      const sx = sign * x;
+      const sy = -sign * y;
+      return { x: sx * Math.cos(r) + sy * Math.sin(r), y: -sx * Math.sin(r) + sy * Math.cos(r) };
+    };
+    // accelerationIncludingGravity points away from the ground: falling is the opposite.
+    const up = toScreen(a.x, a.y);
+    const raw = { x: -up.x, y: -up.y };
+    g = g ? { x: g.x + (raw.x - g.x) * 0.15, y: g.y + (raw.y - g.y) * 0.15 } : raw;
+    const lin = e.acceleration && e.acceleration.x != null && e.acceleration.y != null ? toScreen(e.acceleration.x, e.acceleration.y) : { x: -(raw.x - g.x), y: -(raw.y - g.y) };
+    return { gravity: g, linear: lin };
+  };
+}
+
+export function isIOSDevice() {
+  if (typeof navigator === "undefined") return false;
+  return /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 }
 
 /**
