@@ -306,6 +306,11 @@ export interface PrintLayer {
   seed: number;
   /** Misregistration offset in artwork units. */
   offset: { dx: number; dy: number };
+  /**
+   * Editable brush strokes and shapes painted for this ink, drawn over the
+   * raster mask in order (eraser strokes cut both). Absent on older inks.
+   */
+  strokes?: Stroke[];
 }
 
 export type CropKind = "rect" | "circle" | "contour" | "manual";

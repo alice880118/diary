@@ -11,9 +11,7 @@ export type ArtTool =
   | { kind: "shape"; style: ShapeStyle }
   | { kind: "select" }
   | { kind: "moveImage" }
-  /** `also`: extra masks touched by the same stroke (paint-mode eraser clears every ink). */
-  | { kind: "maskBrush"; canvas: HTMLCanvasElement; size: number; erase: boolean; also?: HTMLCanvasElement[] }
-  | { kind: "lasso"; purpose: "maskAdd" | "maskSub" | "crop" };
+  | { kind: "lasso"; purpose: "crop" };
 
 type Gesture =
   | { kind: "none" }
@@ -22,7 +20,6 @@ type Gesture =
   | { kind: "shapeDrag"; x: number; y: number }
   | { kind: "tap"; x: number; y: number; cx: number; cy: number; moved: boolean }
   | { kind: "move"; x: number; y: number }
-  | { kind: "mask"; x: number; y: number; snapshot: ImageData | null }
   | { kind: "lasso"; pts: number[] };
 
 interface View {
@@ -55,7 +52,6 @@ export function ArtCanvas({
   onSelectionDrag,
   onImageDrag,
   onDragStart,
-  onMaskEnd,
   onLasso,
 }: {
   size: number;
@@ -74,7 +70,6 @@ export function ArtCanvas({
   onImageDrag?: (dx: number, dy: number, done: boolean) => void;
   /** Art-space point where a moveImage drag starts. */
   onDragStart?: (x: number, y: number) => void;
-  onMaskEnd?: () => void;
   onLasso?: (poly: number[]) => void;
 }) {
   const baseRef = useRef<HTMLCanvasElement>(null);
@@ -195,26 +190,6 @@ export function ArtCanvas({
     }
   };
 
-  const paintMask = (x0: number, y0: number, x1: number, y1: number) => {
-    if (tool.kind !== "maskBrush") return;
-    for (const canvas of [tool.canvas, ...(tool.also ?? [])]) {
-      const ctx = canvas.getContext("2d");
-      if (!ctx) continue;
-      ctx.save();
-      ctx.globalCompositeOperation = tool.erase ? "destination-out" : "source-over";
-      ctx.strokeStyle = "#fff";
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      ctx.lineWidth = tool.size;
-      ctx.beginPath();
-      ctx.moveTo(x0, y0);
-      ctx.lineTo(x1 + 0.01, y1);
-      ctx.stroke();
-      ctx.restore();
-    }
-    repaintOverlay();
-  };
-
   const drawLasso = (pts: number[]) => {
     const c = liveRef.current;
     const ctx = c?.getContext("2d");
@@ -245,15 +220,6 @@ export function ArtCanvas({
     }
     if (g.kind === "lasso") clearLive();
     if (g.kind === "move") onImageDrag?.(0, 0, true);
-    if (g.kind === "mask") {
-      // The first finger of a pinch must not leave a dab in the mask.
-      if (g.snapshot && tool.kind === "maskBrush") {
-        tool.canvas.getContext("2d")?.putImageData(g.snapshot, 0, 0);
-        repaintOverlay();
-      } else {
-        onMaskEnd?.();
-      }
-    }
   };
 
   const onPointerDown = (e: React.PointerEvent) => {
@@ -300,15 +266,6 @@ export function ArtCanvas({
         gesture.current = { kind: "move", x: p.x, y: p.y };
         onDragStart?.(p.x, p.y);
         return;
-      case "maskBrush": {
-        const snapshot =
-          e.pointerType === "touch"
-            ? tool.canvas.getContext("2d")?.getImageData(0, 0, tool.canvas.width, tool.canvas.height) ?? null
-            : null;
-        gesture.current = { kind: "mask", x: p.x, y: p.y, snapshot };
-        paintMask(p.x, p.y, p.x, p.y);
-        return;
-      }
       case "lasso":
         gesture.current = { kind: "lasso", pts: [p.x, p.y] };
         return;
@@ -352,15 +309,6 @@ export function ArtCanvas({
     const p = toArt(e.clientX, e.clientY);
     if (g.kind === "move") {
       onImageDrag?.(p.x - g.x, p.y - g.y, false);
-      return;
-    }
-    if (g.kind === "mask") {
-      for (const ev of list) {
-        const q = toArt(ev.clientX, ev.clientY);
-        paintMask(g.x, g.y, q.x, q.y);
-        g.x = q.x;
-        g.y = q.y;
-      }
       return;
     }
     if (g.kind === "lasso") {
@@ -416,10 +364,6 @@ export function ArtCanvas({
     if (g.kind === "move") {
       const p = toArt(e.clientX, e.clientY);
       onImageDrag?.(cancelled ? 0 : p.x - g.x, cancelled ? 0 : p.y - g.y, true);
-      return;
-    }
-    if (g.kind === "mask") {
-      onMaskEnd?.();
       return;
     }
     if (g.kind === "lasso") {

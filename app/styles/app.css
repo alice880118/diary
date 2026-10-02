@@ -528,6 +528,23 @@ a {
   box-shadow: 0 0 0 1px var(--primary);
 }
 
+/* iOS Safari gives date/time inputs a native intrinsic width that ignores
+   width: 100%, pushing them past their container; reset it. */
+input[type="date"].input,
+input[type="time"].input {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  text-align: left;
+}
+
+input[type="date"].input::-webkit-date-and-time-value,
+input[type="time"].input::-webkit-date-and-time-value {
+  text-align: left;
+}
+
 .input.is-error {
   border-color: var(--destructive);
   box-shadow: 0 0 0 1px var(--destructive);
@@ -810,6 +827,8 @@ input[type="color"] {
 
 .sheet-body {
   flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: hidden;
   overflow-y: auto;
   padding: 4px 16px 16px;
 }

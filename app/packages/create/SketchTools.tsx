@@ -157,6 +157,8 @@ export function PalettePopover({
   onPick,
   ignore,
   bottom,
+  colors,
+  title,
 }: {
   open: boolean;
   onClose: () => void;
@@ -164,12 +166,15 @@ export function PalettePopover({
   onPick: (c: string) => void;
   ignore: RefObject<HTMLElement | null>[];
   bottom?: number | string;
+  /** Defaults to the sketch colors. */
+  colors?: { value: string; label: string }[];
+  title?: string;
 }) {
   return (
-    <Popover open={open} onClose={onClose} ignore={ignore} bottom={bottom}>
+    <Popover open={open} onClose={onClose} ignore={ignore} bottom={bottom} title={title}>
       <div className="palette">
         <ColorDots
-          colors={SKETCH_COLORS.map((c) => ({ value: c, label: c }))}
+          colors={colors ?? SKETCH_COLORS.map((c) => ({ value: c, label: c }))}
           value={color}
           onChange={(c) => {
             onPick(c);

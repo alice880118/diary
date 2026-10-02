@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
+import { inkMask } from "../art/render";
 import type { ArtRuntime } from "../art/runtime";
 import type { ArtLayer, CropKind, PrintLayer, StickerMaterial, StickerSettings } from "../db/types";
 import {
@@ -19,7 +20,6 @@ import { textureScaleOf, textureThumb } from "../textures/render";
 import { SortableRows } from "./SketchTools";
 import { t } from "../i18n";
 
-export type MaskTool = "brush" | "erase" | "lassoAdd" | "lassoSub";
 export type PrintView = "composite" | "single" | "draft" | "mask";
 
 /* ------------------------------------------------------------------ */
@@ -240,45 +240,12 @@ export function PaperSheet({
 /* Print                                                               */
 /* ------------------------------------------------------------------ */
 
-export const MASK_TOOLS: { id: MaskTool; label: string; icon: IconName }[] = [
-  { id: "brush", get label() { return t("Brush"); }, icon: "brush2" },
-  { id: "erase", get label() { return t("Eraser"); }, icon: "eraser2" },
-  { id: "lassoAdd", get label() { return t("Lasso add"); }, icon: "lassoAdd" },
-  { id: "lassoSub", get label() { return t("Lasso subtract"); }, icon: "lassoSub" },
-];
-
 export const PRINT_VIEWS: { id: PrintView; label: string; icon: IconName }[] = [
   { id: "composite", get label() { return t("Composite"); }, icon: "viewComposite" },
   { id: "single", get label() { return t("Single ink"); }, icon: "viewSingle" },
   { id: "mask", get label() { return t("Mask only"); }, icon: "viewMask" },
   { id: "draft", get label() { return t("Sketch"); }, icon: "pen2" },
 ];
-
-export function MaskSizePopover({
-  open,
-  onClose,
-  size,
-  onSize,
-  ignore,
-}: {
-  open: boolean;
-  onClose: () => void;
-  size: number;
-  onSize: (v: number) => void;
-  ignore: RefObject<HTMLElement | null>[];
-}) {
-  return (
-    <Popover open={open} onClose={onClose} title={t("Brush size")} ignore={ignore}>
-      <label className="slider-row">
-        <span className="slider-icon">
-          <Icon name="size" size={18} />
-        </span>
-        <input type="range" min={6} max={160} value={size} aria-label={t("Brush size")} onChange={(e) => onSize(Number(e.target.value))} />
-        <span className="slider-value">{size}</span>
-      </label>
-    </Popover>
-  );
-}
 
 export function InkColorPopover({
   open,
@@ -313,7 +280,7 @@ function InkThumb({ layer, rt, empty }: { layer: PrintLayer; rt: ArtRuntime | nu
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const c = ref.current;
-    const m = rt?.printMasks.get(layer.id);
+    const m = rt ? inkMask(rt, layer) : undefined;
     if (!c || !m || empty) return;
     const ctx = c.getContext("2d");
     if (!ctx) return;
