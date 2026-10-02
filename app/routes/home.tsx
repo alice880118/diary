@@ -294,7 +294,7 @@ function AddStickerSheet({
                 className={`add-cell${p.ratio < 0.6 ? " is-wide" : ""}`}
                 onClick={() => onAdd({ source: "preset", presetId: p.id, w: p.w })}
               >
-                <div className="add-art" style={{ aspectRatio: `1 / ${p.ratio}`, width: p.ratio > 1 ? `${70 / p.ratio}%` : p.ratio < 0.6 ? "86%" : "78%" }}>
+                <div className="add-art">
                   <div className={`board-preset${p.id.startsWith("icon-") ? " is-icon" : ""}`}>
                     <PresetArt id={p.id} />
                   </div>
