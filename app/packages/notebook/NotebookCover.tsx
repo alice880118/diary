@@ -31,14 +31,35 @@ export function NotebookCover({
         width: fluid ? "100%" : width,
         ...(fluid ? { aspectRatio: "1 / 1.33", containerType: "inline-size" } : { height: width * 1.33 }),
         borderRadius: "4px 12px 12px 4px",
-        boxShadow:
-          "inset 6px 0 0 rgba(0,0,0,0.12), inset 8px 0 6px rgba(255,255,255,0.12), 0 6px 14px rgba(40,30,20,0.18)",
+        boxShadow: c.image
+          ? "0 6px 14px rgba(40,30,20,0.18)"
+          : "inset 6px 0 0 rgba(0,0,0,0.12), inset 8px 0 6px rgba(255,255,255,0.12), 0 6px 14px rgba(40,30,20,0.18)",
         overflow: "hidden",
         ...c.style,
         ...style,
       }}
     >
-      {bare ? null : (
+      {bare ? null : c.image ? (
+        <div
+          style={{
+            position: "absolute",
+            left: "26%",
+            right: "14%",
+            top: "56%",
+            transform: "translateY(-50%)",
+            textAlign: "center",
+            fontSize: fluid ? "clamp(9px, 9cqi, 13px)" : Math.max(8, Math.min(14, width * 0.09)),
+            fontWeight: 700,
+            textShadow: "0 0 3px #fff, 0 0 3px #fff",
+            color: c.ink,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {name || t("Untitled")}
+        </div>
+      ) : (
         <div
           style={{
             position: "absolute",
@@ -63,6 +84,7 @@ export function NotebookCover({
       )}
       <div
         style={{
+          display: c.image ? "none" : undefined,
           position: "absolute",
           right: 0,
           top: "12%",
