@@ -45,10 +45,12 @@ create + fill + resize / rotate / move / duplicate, sticker finish still saves.
 - Print paint mode (switch on the canvas): pick a color → that ink (created if needed);
   eraser clears every ink in one undo step.
 
+- Page handwriting: Shape tool, tap-to-select with move / resize / rotate box,
+  duplicate / delete, style edits on the selection (shared `drawing/objectOps.ts`).
+- Crayon / pastel / chalk tips: crisper broken edges.
+
 ## Next
 
-1. Shape tool on page handwriting (EditorCanvas): reuse ShapeDrag + TransformBox, select
-   shapes / strokes with handles (currently page select = rect-select + move only).
-2. Fine-tune crayon edges against the reference (crisper broken edge).
-3. Real-device check: Apple Pencil pressure, iPad hold tolerance.
-4. Optional: per-stroke render cache if many textured strokes get slow.
+1. Real-device check: Apple Pencil pressure, iPad hold tolerance, iOS Blob fallback.
+2. Optional: per-stroke render cache if many textured strokes get slow.
+3. Open a PR to main when the preview is approved.

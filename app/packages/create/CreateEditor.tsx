@@ -51,18 +51,8 @@ import {
   StudioBar,
   ToolButton,
 } from "./SketchTools";
-import {
-  boxOfPoints,
-  boxOfShape,
-  distToPolyline,
-  hitShape,
-  mapPoints,
-  resizeBox,
-  rotateTowards,
-  shapeFallbackPoints,
-  shapeFromBox,
-  type Box,
-} from "../drawing/geometry";
+import type { Box } from "../drawing/geometry";
+import { dragBox as nextBox, duplicateStroke, pickStroke, strokeBox, transformStroke } from "../drawing/objectOps";
 import type { SessionResult } from "../drawing/session";
 import type { BoxOp, DragPhase } from "../drawing/TransformBox";
 import type { Stroke } from "../db/types";
@@ -544,11 +534,9 @@ export function CreateEditor({
   const drawLayer = layer?.kind === "draw" ? layer : null;
   const selStroke = (drawLayer && selectedObj ? drawLayer.strokes.find((x) => x.id === selectedObj) : null) ?? null;
   const selBox: Box | null = selStroke
-    ? selStroke.shape
-      ? boxOfShape(selStroke.shape, selStroke.width)
-      : objDrag.current && objDrag.current.orig.id === selStroke.id
-        ? dragBox.current
-        : boxOfPoints(selStroke.points, selStroke.width / 2)
+    ? !selStroke.shape && objDrag.current && objDrag.current.orig.id === selStroke.id
+      ? dragBox.current
+      : strokeBox(selStroke)
     : null;
 
   /** Applies fn to the active draw layer's strokes. */
@@ -582,18 +570,7 @@ export function CreateEditor({
   const selectAt = (x: number, y: number) => {
     if (!drawLayer) return;
     const tol = 10 * (ART_W / Math.max(1, canvasSize));
-    for (let i = drawLayer.strokes.length - 1; i >= 0; i--) {
-      const st = drawLayer.strokes[i];
-      if (st.mode === "erase") continue;
-      const hit = st.shape
-        ? hitShape(st.shape, st.fill?.kind === "solid", st.outline === false ? 0 : st.width, x, y, tol)
-        : distToPolyline(st.points, x, y) <= st.width / 2 + tol;
-      if (hit) {
-        setSelectedObj(st.id);
-        return;
-      }
-    }
-    setSelectedObj(null);
+    setSelectedObj(pickStroke(drawLayer.strokes, x, y, tol)?.id ?? null);
   };
 
   const dragSelection = (op: BoxOp, phase: DragPhase, p: { x: number; y: number }, start: { x: number; y: number }) => {
@@ -605,21 +582,9 @@ export function CreateEditor({
     }
     const d = objDrag.current;
     if (!d) return;
-    const b0 = d.box;
-    let nb: Box;
-    if (op === "move") nb = { ...b0, cx: b0.cx + p.x - start.x, cy: b0.cy + p.y - start.y };
-    else if (op === "rotate") nb = { ...b0, rot: rotateTowards(b0, p.x, p.y) };
-    else nb = resizeBox(b0, op, p.x, p.y);
+    const nb = nextBox(d.box, op, p, start);
     dragBox.current = nb;
-    const o = d.orig;
-    let next: Stroke;
-    if (o.shape) {
-      const g = shapeFromBox(o.shape, nb);
-      next = { ...o, shape: g, points: shapeFallbackPoints(g) };
-    } else {
-      next = { ...o, points: mapPoints(o.points, b0, nb), ...(op !== "move" && op !== "rotate" ? { width: o.width } : null) };
-    }
-    replaceStroke(next, phase === "end" ? "end" : "continuous");
+    replaceStroke(transformStroke(d.orig, d.box, nb), phase === "end" ? "end" : "continuous");
     if (phase === "end") {
       objDrag.current = null;
       dragBox.current = null;
@@ -635,13 +600,7 @@ export function CreateEditor({
 
   const duplicateSelection = () => {
     if (!selStroke) return;
-    const off = 24;
-    const copy: Stroke = selStroke.shape
-      ? (() => {
-          const g = { ...selStroke.shape!, cx: selStroke.shape!.cx + off, cy: selStroke.shape!.cy + off };
-          return { ...selStroke, id: newId("st"), shape: g, points: shapeFallbackPoints(g) };
-        })()
-      : { ...selStroke, id: newId("st"), points: selStroke.points.map((v) => v + off) };
+    const copy = duplicateStroke(selStroke);
     addStrokes([copy]);
     setSelectedObj(copy.id);
   };

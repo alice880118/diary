@@ -51,13 +51,15 @@ interface TexParams {
   directional: boolean;
   /** Tip aspect (height / width) for directional tips. */
   aspect: number;
+  /** Where the tip starts to fade (0..1 of the radius); higher = crisper broken edge. */
+  edge: number;
 }
 
 const TEX: Record<"crayon" | "chalk" | "pastel" | "dryBrush", TexParams> = {
-  crayon: { spacing: 0.1, scatter: 0.1, sizeJitter: 0.16, flow: 0.62, grain: 0.85, rough: 0.5, speckle: 0.35, directional: false, aspect: 1 },
-  pastel: { spacing: 0.08, scatter: 0.06, sizeJitter: 0.1, flow: 0.7, grain: 0.55, rough: 0.3, speckle: 0.2, directional: false, aspect: 1 },
-  chalk: { spacing: 0.1, scatter: 0.14, sizeJitter: 0.18, flow: 0.32, grain: 0.95, rough: 0.45, speckle: 0.55, directional: false, aspect: 1 },
-  dryBrush: { spacing: 0.06, scatter: 0.02, sizeJitter: 0.05, flow: 0.45, grain: 0.6, rough: 0.15, speckle: 0.1, directional: true, aspect: 0.45 },
+  crayon: { spacing: 0.1, scatter: 0.1, sizeJitter: 0.16, flow: 0.62, grain: 0.85, rough: 0.5, speckle: 0.35, directional: false, aspect: 1, edge: 0.88 },
+  pastel: { spacing: 0.08, scatter: 0.06, sizeJitter: 0.1, flow: 0.7, grain: 0.55, rough: 0.3, speckle: 0.2, directional: false, aspect: 1, edge: 0.78 },
+  chalk: { spacing: 0.1, scatter: 0.14, sizeJitter: 0.18, flow: 0.32, grain: 0.95, rough: 0.45, speckle: 0.55, directional: false, aspect: 1, edge: 0.7 },
+  dryBrush: { spacing: 0.06, scatter: 0.02, sizeJitter: 0.05, flow: 0.45, grain: 0.6, rough: 0.15, speckle: 0.1, directional: true, aspect: 0.45, edge: 0.85 },
 };
 
 export function defaultTexture(b: BrushKind) {
@@ -152,7 +154,7 @@ function tips(kind: keyof typeof TEX): HTMLCanvasElement[] {
         const edge = 1 - p.rough * 0.5 + p.rough * 0.5 * periodicNoise((ang / (Math.PI * 2) + 0.5) * 9, v * 3.1, 9, seed);
         const d = Math.hypot(dx, dy) / edge;
         if (d >= 1) continue;
-        let a = d < 0.7 ? 1 : 1 - (d - 0.7) / 0.3;
+        let a = d < p.edge ? 1 : 1 - (d - p.edge) / (1 - p.edge);
         if (p.directional) {
           // Bristle streaks: bands across the tip's short axis.
           const band = periodicNoise(0.5, (dy * 0.5 + 0.5) * 14, 14, seed + 5);

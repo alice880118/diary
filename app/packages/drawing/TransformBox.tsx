@@ -22,6 +22,7 @@ export function TransformBox({
   toSurface,
   onDrag,
   rotatable = true,
+  z,
 }: {
   box: Box;
   unit: number;
@@ -29,6 +30,8 @@ export function TransformBox({
   toSurface: (clientX: number, clientY: number) => { x: number; y: number };
   onDrag: (op: BoxOp, phase: DragPhase, p: { x: number; y: number }, start: { x: number; y: number }) => void;
   rotatable?: boolean;
+  /** Stacking order inside the host (default from CSS). */
+  z?: number;
 }) {
   const active = useRef<{ op: BoxOp; id: number; start: { x: number; y: number } } | null>(null);
   const k = 1 / zoom;
@@ -92,6 +95,7 @@ export function TransformBox({
         height: h,
         transform: `rotate(${box.rot}deg)`,
         outlineWidth: 1.5 * k,
+        zIndex: z,
       }}
     >
       <div className="tbox-body" {...handlers("move")} />

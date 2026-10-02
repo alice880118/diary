@@ -6,7 +6,7 @@ import { formatDate, newId, ymOf } from "../db/id";
 import { describeError } from "../db/idb";
 import { duplicatePage, getSticker, listStickers, putAsset, trashPage } from "../db/repo";
 import type { LinkObject, NoteObject, Page, PageObject, Sticker, TextObject } from "../db/types";
-import { DrawBar, inkConfig, useDrawPrefs, type DrawTool } from "../create/DrawTools";
+import { DrawBar, inkConfig, shapeStyle, useDrawPrefs, type DrawTool, type StylePatch } from "../create/DrawTools";
 import { SKETCH_COLORS } from "../create/SketchTools";
 import { DateSheet } from "../notebook/DateSheet";
 import { fetchLinkMeta, linkBox, openExternal } from "../page/links";
@@ -59,6 +59,8 @@ export function PageEditor({
   const [inkColor, setInkColor] = useState(SKETCH_COLORS[0]);
   const [prefs, setPrefs] = useDrawPrefs();
   const ink = inkTool === "brush" || inkTool === "eraser" ? inkConfig(prefs, inkTool, inkColor, "#fffdf8") : null;
+  const [inkSel, setInkSel] = useState<string | null>(null);
+  const styleSession = useRef(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [panel, setPanel] = useState<Panel>(null);
   const [editing, setEditing] = useState<PageObject | null>(null);
@@ -356,6 +358,17 @@ export function PageEditor({
     </button>
   );
 
+  const inkSelStroke = inkSel ? page.ink.find((st) => st.id === inkSel) ?? null : null;
+  /** Style edits on the selected handwriting object; a slider drag is one undo step. */
+  const styleInkSel = (patch: StylePatch, continuous?: boolean) => {
+    if (!inkSelStroke) return;
+    const next = { ...inkSelStroke, ...patch };
+    if ("texture" in patch && patch.texture === undefined) delete next.texture;
+    const record = continuous === true ? !styleSession.current : continuous === false ? !styleSession.current : true;
+    styleSession.current = continuous === true;
+    commit((p) => ({ ...p, ink: p.ink.map((st) => (st.id === next.id ? next : st)) }), record);
+  };
+
   let bottomTools: React.ReactNode;
   if (mode === "ink") {
     bottomTools = null;
@@ -444,6 +457,9 @@ export function PageEditor({
         mode={mode}
         ink={ink}
         inkSelect={inkTool === "select"}
+        shapeStyle={inkTool === "shape" ? shapeStyle(prefs, inkColor) : null}
+        inkSel={inkSel}
+        onInkSel={setInkSel}
         selectedId={selectedId}
         onSelect={setSelectedId}
         onCommit={(fn) => commit(fn)}
@@ -492,17 +508,23 @@ export function PageEditor({
           <div className="ink-bar">
             <DrawBar
               tool={inkTool}
-              onTool={setInkTool}
-              tools={["brush", "eraser", "select"]}
+              onTool={(t) => {
+                setInkTool(t);
+                if (t === "brush" || t === "eraser") setInkSel(null);
+              }}
+              tools={["brush", "eraser", "shape", "select"]}
               prefs={prefs}
               onPrefs={setPrefs}
               color={inkColor}
               onColor={setInkColor}
-              selection={null}
-              onSelectionStyle={() => undefined}
+              selection={inkSelStroke}
+              onSelectionStyle={styleInkSel}
               popBottom="calc(100% + 8px)"
               right={
-                <button type="button" className="btn btn-primary btn-sm" style={{ marginLeft: 4 }} onClick={() => setMode("layout")}>
+                <button type="button" className="btn btn-primary btn-sm" style={{ marginLeft: 4 }} onClick={() => {
+                  setInkSel(null);
+                  setMode("layout");
+                }}>
                   Done
                 </button>
               }
