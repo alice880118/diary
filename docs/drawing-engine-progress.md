@@ -34,6 +34,17 @@ typecheck, build, 9 unit tests; browser E2E (mouse + simulated touch): crayon lo
 hold → line / ellipse / arc, doodle stays freehand, Undo/Redo of corrections, shape
 create + fill + resize / rotate / move / duplicate, sticker finish still saves.
 
+## Done (day 2)
+
+- iOS Safari "Error preparing Blob/File data to be stored in object store": asset writes
+  fall back to ArrayBuffer (`bytes`) and stay in that mode on the device
+  (`diary.assetsAsBytes`); readers hydrate either form (`hydrateAsset`); backup export /
+  restore handle both. Verified with Blob writes forced to fail.
+- Print: up to 15 inks (grain cache quantized to bytes, empty inks skipped); sketch guide
+  drawn faintly over the print preview (toggle in the view menu).
+- Print paint mode (switch on the canvas): pick a color → that ink (created if needed);
+  eraser clears every ink in one undo step.
+
 ## Next
 
 1. Shape tool on page handwriting (EditorCanvas): reuse ShapeDrag + TransformBox, select

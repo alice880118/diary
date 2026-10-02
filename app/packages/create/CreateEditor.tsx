@@ -28,7 +28,7 @@ import {
   type StickerVersion,
 } from "../db/types";
 import type { SaveStatus } from "../editor/useEditorDoc";
-import { MAX_PRINT_LAYERS, newPrintLayer } from "../print/layers";
+import { INK_PALETTE, MAX_PRINT_LAYERS, newPrintLayer } from "../print/layers";
 import { Dropdown } from "../shell/Dropdown";
 import { Icon } from "../shell/Icon";
 import { Sheet } from "../shell/Sheet";
@@ -148,6 +148,8 @@ export function CreateEditor({
   const objDrag = useRef<{ orig: Stroke; box: Box } | null>(null);
   const dragBox = useRef<Box | null>(null);
   const [shine, setShine] = useState(false);
+  const [paintMode, setPaintModeState] = useState(false);
+  const [guide, setGuide] = useState(true);
   const [pop, setPop] = useState<
     "brush" | "palette" | "image" | "texture" | "maskSize" | "inkColor" | "material" | "cut" | null
   >(null);
@@ -471,6 +473,72 @@ export function CreateEditor({
     navigate(returnTo ?? "/create");
   };
 
+  /* ---------- print: paint mode ---------- */
+
+  useEffect(() => {
+    try {
+      setPaintModeState(localStorage.getItem("diary.printPaint") === "1");
+    } catch {
+      // Default off.
+    }
+  }, []);
+
+  /** Picks the ink with this color, creating one if needed (paint mode). */
+  const pickPaintColor = (c: string) => {
+    const hit = art.print.layers.find((l) => l.color.toLowerCase() === c.toLowerCase());
+    if (hit) {
+      setActivePrint(hit.id);
+      return;
+    }
+    if (art.print.layers.length >= MAX_PRINT_LAYERS) {
+      toast(`You can use up to ${MAX_PRINT_LAYERS} ink colors. Pick one you already used.`, "error");
+      return;
+    }
+    const base = newPrintLayer(art.print.layers.length);
+    const name = INK_PALETTE.find((x) => x.color.toLowerCase() === c.toLowerCase())?.name ?? "Custom";
+    const p: PrintLayer = { ...base, color: c, name };
+    change((a) => ({ ...a, print: { enabled: true, layers: [...a.print.layers, p] } }));
+    setActivePrint(p.id);
+  };
+
+  const setPaintMode = (on: boolean) => {
+    setPaintModeState(on);
+    try {
+      localStorage.setItem("diary.printPaint", on ? "1" : "0");
+    } catch {
+      // Ignore.
+    }
+    if (!on) return;
+    if (!art.print.enabled) change((a) => ({ ...a, print: { ...a.print, enabled: true } }));
+    if (!pLayer) pickPaintColor(art.print.layers[0]?.color ?? INK_PALETTE[2].color);
+    if (maskTool === "lassoAdd" || maskTool === "lassoSub") setMaskTool("brush");
+  };
+
+  /** Persists several masks and records them as one undo step. */
+  const commitMasks = async (layers: PrintLayer[]) => {
+    try {
+      const ids = new Map<string, string>();
+      for (const p of layers) {
+        const c = rtRef.current?.printMasks.get(p.id);
+        if (c) ids.set(p.id, await persistMask(c, p.name));
+      }
+      change((a) => ({
+        ...a,
+        print: { ...a.print, layers: a.print.layers.map((l) => (ids.has(l.id) ? { ...l, maskAssetId: ids.get(l.id) as string } : l)) },
+      }));
+      setRtTick((t) => t + 1);
+    } catch (err) {
+      toast(describeError(err), "error");
+    }
+  };
+
+  /** The sketch, drawn faintly over the print preview as a guide while painting inks. */
+  const guideCanvas = useMemo(
+    () => (rt && step === "print" ? renderSource(art, rt, 0.5) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [art.layers, rt, rtTick, step],
+  );
+
   /* ---------- drawing objects ---------- */
 
   const drawLayer = layer?.kind === "draw" ? layer : null;
@@ -597,7 +665,11 @@ export function CreateEditor({
   } else if (step === "print" && pLayer && rt) {
     const c = rt.printMasks.get(pLayer.id);
     if (c && (maskTool === "brush" || maskTool === "erase")) {
-      tool = { kind: "maskBrush", canvas: c, size: brushSize, erase: maskTool === "erase" };
+      const also =
+        paintMode && maskTool === "erase"
+          ? art.print.layers.filter((l) => l.id !== pLayer.id).map((l) => rt.printMasks.get(l.id)).filter((m): m is HTMLCanvasElement => Boolean(m))
+          : undefined;
+      tool = { kind: "maskBrush", canvas: c, size: brushSize, erase: maskTool === "erase", also };
     } else if (c) {
       tool = { kind: "lasso", purpose: maskTool === "lassoAdd" ? "maskAdd" : "maskSub" };
     }
@@ -625,6 +697,11 @@ export function CreateEditor({
         l.imgH * (1 - l.crop.t - l.crop.b),
       );
       ctx.restore();
+    }
+    if (step === "print" && guide && guideCanvas && art.print.enabled && (printView === "composite" || printView === "single")) {
+      ctx.globalAlpha = 0.28;
+      ctx.drawImage(guideCanvas, 0, 0, ART_W, ART_H);
+      ctx.globalAlpha = 1;
     }
     if (step === "print" && pLayer && rt) {
       const m = rt.printMasks.get(pLayer.id);
@@ -668,7 +745,7 @@ export function CreateEditor({
     }
   };
 
-  const overlayKey = `${step}|${activeLayer}|${activePrint}|${printView}|${preview}|${rtTick}|${JSON.stringify(
+  const overlayKey = `${guide}|${guideCanvas ? 1 : 0}|${step}|${activeLayer}|${activePrint}|${printView}|${preview}|${rtTick}|${JSON.stringify(
     step === "draw" && layer?.kind === "image" ? [layer.x, layer.y, layer.scale, layer.rot, layer.crop] : null,
   )}|${step === "sticker" ? JSON.stringify(art.sticker.crop) : ""}|${pLayer?.color}`;
 
@@ -784,7 +861,11 @@ export function CreateEditor({
                 setLayer(imgLayer.id, { x: o.x + dx, y: o.y + dy }, done ? "end" : "continuous");
                 if (done) imgDragOrigin.current = null;
               }}
-              onMaskEnd={() => pLayer && void commitMask(pLayer)}
+              onMaskEnd={() => {
+                if (!pLayer) return;
+                if (paintMode && maskTool === "erase") void commitMasks(art.print.layers);
+                else void commitMask(pLayer);
+              }}
               onLasso={(poly) => {
                 if (tool.kind !== "lasso") return;
                 if (tool.purpose === "crop") {
@@ -840,10 +921,15 @@ export function CreateEditor({
                   </>
                 )}
               </button>
+              <div className="float-tr-row">
+              <label className="float-group paint-switch">
+                <span>Paint</span>
+                <input type="checkbox" role="switch" className="toggle" aria-label="Paint mode" checked={paintMode} onChange={(e) => setPaintMode(e.target.checked)} />
+              </label>
               <button
                 ref={viewRef}
                 type="button"
-                className={`float-group float-tr view-btn${printView !== "composite" ? " is-on" : ""}`}
+                className={`float-group view-btn${printView !== "composite" ? " is-on" : ""}`}
                 aria-label="View"
                 aria-haspopup="menu"
                 onClick={() => setViewOpen((v) => !v)}
@@ -851,19 +937,29 @@ export function CreateEditor({
                 <Icon name={PRINT_VIEWS.find((v) => v.id === printView)?.icon ?? "viewComposite"} />
                 <Icon name="chev" size={14} />
               </button>
+              </div>
               <Dropdown
                 open={viewOpen}
                 anchor={viewRef}
                 align="end"
                 minWidth={190}
                 onClose={() => setViewOpen(false)}
-                items={PRINT_VIEWS.map((v) => ({
-                  icon: v.icon,
-                  label: v.id === printView ? <b>{v.label}</b> : v.label,
-                  highlighted: v.id === printView,
-                  trail: v.id === printView ? <Icon name="check" size={18} /> : undefined,
-                  onSelect: () => setPrintView(v.id),
-                }))}
+                items={[
+                  ...PRINT_VIEWS.map((v) => ({
+                    icon: v.icon,
+                    label: v.id === printView ? <b>{v.label}</b> : v.label,
+                    highlighted: v.id === printView,
+                    trail: v.id === printView ? <Icon name="check" size={18} /> : undefined,
+                    onSelect: () => setPrintView(v.id),
+                  })),
+                  "separator" as const,
+                  {
+                    icon: "pen2",
+                    label: "Sketch guide",
+                    trail: guide ? <Icon name="check" size={18} /> : undefined,
+                    onSelect: () => setGuide((g) => !g),
+                  },
+                ]}
               />
             </>
           ) : null}
@@ -994,9 +1090,9 @@ export function CreateEditor({
                 </button>
                 <ColorButton
                   color={pLayer?.color ?? "#c8c8c8"}
-                  disabled={!pLayer}
+                  disabled={!pLayer && !paintMode}
                   btnRef={inkColorRef}
-                  onClick={() => pLayer && setPop(pop === "inkColor" ? null : "inkColor")}
+                  onClick={() => (pLayer || paintMode) && setPop(pop === "inkColor" ? null : "inkColor")}
                 />
                 <ToolButton icon="layers" label="Inks" count={art.print.layers.length} onClick={() => { setPop(null); setInksOpen(true); }} />
                 <ToolButton icon="sliders" label="Print settings" disabled={!pLayer} onClick={() => { setPop(null); setParamsOpen(true); }} />
@@ -1010,10 +1106,10 @@ export function CreateEditor({
               ignore={[maskSizeRef, ...MASK_TOOLS.map((t) => ({ get current() { return toolRefs.current[`m-${t.id}`] ?? null; } }))]}
             />
             <InkColorPopover
-              open={pop === "inkColor" && pLayer !== null}
+              open={pop === "inkColor" && (pLayer !== null || paintMode)}
               onClose={() => setPop(null)}
               color={pLayer?.color ?? ""}
-              onPick={(c) => pLayer && setPrintLayer({ ...pLayer, color: c })}
+              onPick={(c) => (paintMode ? pickPaintColor(c) : pLayer && setPrintLayer({ ...pLayer, color: c }))}
               ignore={[inkColorRef]}
             />
           </>

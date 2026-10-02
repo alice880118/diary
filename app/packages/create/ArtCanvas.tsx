@@ -10,7 +10,8 @@ export type ArtTool =
   | { kind: "shape"; style: ShapeStyle }
   | { kind: "select" }
   | { kind: "moveImage" }
-  | { kind: "maskBrush"; canvas: HTMLCanvasElement; size: number; erase: boolean }
+  /** `also`: extra masks touched by the same stroke (paint-mode eraser clears every ink). */
+  | { kind: "maskBrush"; canvas: HTMLCanvasElement; size: number; erase: boolean; also?: HTMLCanvasElement[] }
   | { kind: "lasso"; purpose: "maskAdd" | "maskSub" | "crop" };
 
 type Gesture =
@@ -195,19 +196,21 @@ export function ArtCanvas({
 
   const paintMask = (x0: number, y0: number, x1: number, y1: number) => {
     if (tool.kind !== "maskBrush") return;
-    const ctx = tool.canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.save();
-    ctx.globalCompositeOperation = tool.erase ? "destination-out" : "source-over";
-    ctx.strokeStyle = "#fff";
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.lineWidth = tool.size;
-    ctx.beginPath();
-    ctx.moveTo(x0, y0);
-    ctx.lineTo(x1 + 0.01, y1);
-    ctx.stroke();
-    ctx.restore();
+    for (const canvas of [tool.canvas, ...(tool.also ?? [])]) {
+      const ctx = canvas.getContext("2d");
+      if (!ctx) continue;
+      ctx.save();
+      ctx.globalCompositeOperation = tool.erase ? "destination-out" : "source-over";
+      ctx.strokeStyle = "#fff";
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.lineWidth = tool.size;
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(x1 + 0.01, y1);
+      ctx.stroke();
+      ctx.restore();
+    }
     repaintOverlay();
   };
 

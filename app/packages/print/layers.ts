@@ -2,7 +2,7 @@ import { newId, randomSeed } from "../db/id";
 import { ART_H, ART_W, type PrintLayer } from "../db/types";
 import { mulberry32 } from "../textures/noise";
 
-export const MAX_PRINT_LAYERS = 4;
+export const MAX_PRINT_LAYERS = 15;
 
 /** Riso-like ink palette; users can still pick any colour. */
 export const INK_PALETTE = [

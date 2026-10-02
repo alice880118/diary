@@ -64,7 +64,7 @@ function hexToRgb(hex: string): [number, number, number] {
 
 interface FactorEntry {
   key: string;
-  data: Float32Array;
+  data: Uint8Array;
 }
 const factorCache: FactorEntry[] = [];
 
@@ -80,7 +80,8 @@ function inkFactor(p: PrintLayer, textureId: string, texScale: number, w: number
   const speck = valueNoise(p.seed);
   const uneven = valueNoise(p.seed + 1);
   const height = p.paperShow > 0 ? textureHeight(textureId, w, h, scale * texScale) : null;
-  const out = new Float32Array(w * h);
+  // Quantized to bytes: a quarter of the memory, so 16 inks fit in the cache.
+  const out = new Uint8Array(w * h);
   for (let y = 0; y < h; y++) {
     const v = y / scale;
     for (let x = 0; x < w; x++) {
@@ -96,11 +97,11 @@ function inkFactor(p: PrintLayer, textureId: string, texScale: number, w: number
       if (height) {
         f *= 1 - p.paperShow * 0.8 * (1 - height[i]);
       }
-      out[i] = f;
+      out[i] = Math.round(Math.max(0, Math.min(1, f)) * 255);
     }
   }
   factorCache.unshift({ key, data: out });
-  if (factorCache.length > 8) factorCache.pop();
+  if (factorCache.length > 16) factorCache.pop();
   return out;
 }
 
@@ -127,7 +128,7 @@ export function inkPlanes(art: Artwork, rt: ArtRuntime, scale: number, only?: st
   for (const p of art.print.layers) {
     if (only ? p.id !== only : !p.visible) continue;
     const mask = rt.printMasks.get(p.id);
-    if (!mask) continue;
+    if (!mask || !maskHasContent(mask)) continue;
     t.clearRect(0, 0, w, h);
     t.imageSmoothingEnabled = true;
     t.drawImage(mask, p.offset.dx * scale, p.offset.dy * scale, w, h);
@@ -135,7 +136,7 @@ export function inkPlanes(art: Artwork, rt: ArtRuntime, scale: number, only?: st
     const f = inkFactor(p, art.texture.id, textureScaleOf(art.texture), w, h, scale);
     const alpha = new Float32Array(w * h);
     for (let i = 0; i < alpha.length; i++) {
-      alpha[i] = (md[i * 4 + 3] / 255) * p.density * f[i];
+      alpha[i] = (md[i * 4 + 3] / 255) * p.density * (f[i] / 255);
     }
     planes.push({ layer: p, alpha, rgb: hexToRgb(p.color) });
   }

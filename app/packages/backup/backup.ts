@@ -2,7 +2,7 @@ import { emitChange } from "../db/events";
 import { newId } from "../db/id";
 import { getAll, txGet, txPut, withTx } from "../db/idb";
 import { sha256 } from "../db/sha256";
-import { getSettings, updateSettings } from "../db/repo";
+import { bytesMode, enableBytesMode, getSettings, hydrateAsset, isBlobStoreError, updateSettings } from "../db/repo";
 import {
   SCHEMA_VERSION,
   type Artwork,
@@ -89,7 +89,7 @@ export async function exportBackup(onProgress?: (p: number) => void): Promise<{ 
   ]);
   const records: AssetRecord[] = [];
   for (let i = 0; i < assets.length; i++) {
-    const { blob, ...meta } = assets[i];
+    const { blob, ...meta } = hydrateAsset(assets[i]);
     const bytes = new Uint8Array(await blob.arrayBuffer());
     records.push({ ...meta, data: bytesToBase64(bytes) });
     onProgress?.((i + 1) / Math.max(1, assets.length));
@@ -245,6 +245,17 @@ const ID_PREFIX: Record<string, string> = {
  * failure leaves local data untouched.
  */
 export async function applyRestore(plan: RestorePlan): Promise<{ added: number; skipped: number }> {
+  try {
+    return await applyRestoreOnce(plan, bytesMode());
+  } catch (err) {
+    // iOS Safari may refuse Blobs; the transaction rolled back, so retry storing raw bytes.
+    if (bytesMode() || !isBlobStoreError(err)) throw err;
+    enableBytesMode();
+    return applyRestoreOnce(plan, true);
+  }
+}
+
+async function applyRestoreOnce(plan: RestorePlan, asBytes: boolean): Promise<{ added: number; skipped: number }> {
   const d = plan.data;
   let added = 0;
   let skipped = 0;
@@ -276,11 +287,8 @@ export async function applyRestore(plan: RestorePlan): Promise<{ added: number; 
       }
       const { data, ...meta } = a;
       const bytes = base64ToBytes(data);
-      const asset: Asset = {
-        ...meta,
-        id: idMap.get(a.id) ?? a.id,
-        blob: new Blob([bytes], { type: meta.mime }),
-      };
+      const id = idMap.get(a.id) ?? a.id;
+      const asset = asBytes ? { ...meta, id, bytes: bytes.buffer } : { ...meta, id, blob: new Blob([bytes], { type: meta.mime }) };
       await txPut(tx, "assets", asset);
       added++;
     }
