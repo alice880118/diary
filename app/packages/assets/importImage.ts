@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { canvasToBlob, loadImage } from "../db/assetUrl";
 
 export const ACCEPTED_TYPES = ["image/png", "image/jpeg", "image/webp"];
@@ -16,10 +17,10 @@ export interface DecodedImage {
 /** Checks format, file size and decoded dimensions before anything is stored. */
 export async function decodeImageFile(file: File): Promise<DecodedImage> {
   if (!ACCEPTED_TYPES.includes(file.type)) {
-    throw new ImportError(`Unsupported format (${file.type || "unknown"}). Use PNG, JPEG or WebP.`);
+    throw new ImportError(t("Unsupported format ({type}). Use PNG, JPEG or WebP.", { type: file.type || "unknown" }));
   }
   if (file.size > MAX_FILE_BYTES) {
-    throw new ImportError(`File is too large (${(file.size / 1048576).toFixed(1)} MB). The limit is 20 MB.`);
+    throw new ImportError(t("File is too large ({mb} MB). The limit is 20 MB.", { mb: (file.size / 1048576).toFixed(1) }));
   }
   const url = URL.createObjectURL(file);
   try {
@@ -32,7 +33,7 @@ export async function decodeImageFile(file: File): Promise<DecodedImage> {
       throw new ImportError("Invalid image dimensions.");
     }
     if (w > MAX_DECODE_SIDE || h > MAX_DECODE_SIDE) {
-      throw new ImportError(`Image is ${w}×${h}, which exceeds the ${MAX_DECODE_SIDE}px limit.`);
+      throw new ImportError(t("Image is {w}×{h}, which exceeds the {max}px limit.", { w, h, max: MAX_DECODE_SIDE }));
     }
     return { img, w, h };
   } finally {

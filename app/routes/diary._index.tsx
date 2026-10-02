@@ -20,14 +20,15 @@ import { Icon } from "~/packages/shell/Icon";
 import { AppHeader, EmptyState, Screen, SettingsLink } from "~/packages/shell/Layout";
 import { ConfirmSheet, Menu, Sheet } from "~/packages/shell/Sheet";
 import { useToast } from "~/packages/shell/toast";
+import { t, tn } from "~/packages/i18n";
 
 function relTime(ts: number) {
   const diff = Date.now() - ts;
   const min = Math.floor(diff / 60000);
-  if (min < 1) return "Just now";
-  if (min < 60) return `${min} min ago`;
+  if (min < 1) return t("Just now");
+  if (min < 60) return t("{n} min ago", { n: min });
   const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr} hr ago`;
+  if (hr < 24) return t("{n} hr ago", { n: hr });
   const d = new Date(ts);
   return `${d.getMonth() + 1}/${d.getDate()}`;
 }
@@ -54,7 +55,7 @@ export default function Bookshelf() {
       const nb = await createNotebook(v);
       await updateSettings({ onboarded: true });
       setFormOpen(null);
-      toast("Notebook created", "success");
+      toast(t("Notebook created"), "success");
       navigate(`/diary/${nb.id}`);
     } catch (err) {
       toast(describeError(err), "error");
@@ -68,7 +69,7 @@ export default function Bookshelf() {
     try {
       await updateNotebook(nb.id, v);
       setFormOpen(null);
-      toast("Updated", "success");
+      toast(t("Updated"), "success");
     } catch (err) {
       toast(describeError(err), "error");
     } finally {
@@ -77,12 +78,12 @@ export default function Bookshelf() {
   };
 
   if (data.loading && !data.data) {
-    return <Screen header={<AppHeader title="Notebooks" />}>{null}</Screen>;
+    return <Screen header={<AppHeader title={t("Notebooks")} />}>{null}</Screen>;
   }
   if (data.error && !data.data) {
     return (
-      <Screen header={<AppHeader title="Notebooks" />}>
-        <EmptyState title="Couldn't read local data" hint={data.error} />
+      <Screen header={<AppHeader title={t("Notebooks")} />}>
+        <EmptyState title={t("Couldn't read local data")} hint={data.error} />
       </Screen>
     );
   }
@@ -90,7 +91,7 @@ export default function Bookshelf() {
 
   if (!settings.onboarded && notebooks.length === 0) {
     return (
-      <Screen header={<AppHeader title="Welcome" right={<SettingsLink />} />}>
+      <Screen header={<AppHeader title={t("Welcome")} right={<SettingsLink />} />}>
         <Onboarding busy={busy} onCreate={create} />
       </Screen>
     );
@@ -101,13 +102,13 @@ export default function Bookshelf() {
       nav
       header={
         <AppHeader
-          title="Notebooks"
+          title={t("Notebooks")}
           right={
             <>
               <button
                 type="button"
                 className="icon-btn"
-                aria-label="New notebook"
+                aria-label={t("New notebook")}
                 onClick={() => setFormOpen("new")}
               >
                 <Icon name="plus" />
@@ -120,11 +121,11 @@ export default function Bookshelf() {
     >
       {notebooks.length === 0 ? (
         <EmptyState
-          title="No notebooks yet"
-          hint="Create a notebook to start journaling."
+          title={t("No notebooks yet")}
+          hint={t("Create a notebook to start journaling.")}
           action={
             <button type="button" className="btn btn-primary" onClick={() => setFormOpen("new")}>
-              <Icon name="plus" size={18} /> New notebook
+              <Icon name="plus" size={18} /> {t("New notebook")}
             </button>
           }
         />
@@ -143,7 +144,7 @@ export default function Bookshelf() {
                 type="button"
                 onClick={() => navigate(`/diary/${nb.id}`)}
                 style={{ border: 0, background: "none", padding: 0, cursor: "pointer" }}
-                aria-label={`Open ${nb.name}`}
+                aria-label={t("Open {name}", { name: nb.name })}
               >
                 <NotebookCover cover={nb.cover} name={nb.name} width={132} />
               </button>
@@ -161,14 +162,13 @@ export default function Bookshelf() {
                     {nb.name}
                   </div>
                   <div className="muted small">
-                    {pages.get(nb.id)?.length ?? 0}{" "}
-                    {(pages.get(nb.id)?.length ?? 0) === 1 ? "page" : "pages"} · {relTime(nb.updatedAt)}
+                    {tn(pages.get(nb.id)?.length ?? 0, "{n} page", "{n} pages")} · {relTime(nb.updatedAt)}
                   </div>
                 </div>
                 <button
                   type="button"
                   className="icon-btn"
-                  aria-label={`Actions for ${nb.name}`}
+                  aria-label={t("Actions for {name}", { name: nb.name })}
                   onClick={() => setMenuFor(nb)}
                 >
                   <Icon name="more" />
@@ -181,17 +181,17 @@ export default function Bookshelf() {
 
       <Sheet
         open={formOpen !== null}
-        title={formOpen === "new" ? "New notebook" : "Notebook settings"}
+        title={formOpen === "new" ? t("New notebook") : t("Notebook settings")}
         onClose={() => setFormOpen(null)}
         tall
       >
         {formOpen === "new" ? (
-          <NotebookForm submitText="Create" busy={busy} onSubmit={create} />
+          <NotebookForm submitText={t("Create")} busy={busy} onSubmit={create} />
         ) : formOpen ? (
           <NotebookForm
             key={formOpen.id}
             initial={formOpen}
-            submitText="Save"
+            submitText={t("Save")}
             busy={busy}
             onSubmit={(v) => edit(formOpen, v)}
           />
@@ -205,19 +205,19 @@ export default function Bookshelf() {
         items={
           menuFor
             ? [
-                { label: "Open", onSelect: () => navigate(`/diary/${menuFor.id}`) },
-                { label: "Rename / cover / default page style", onSelect: () => setFormOpen(menuFor) },
+                { get label() { return t("Open"); }, onSelect: () => navigate(`/diary/${menuFor.id}`) },
+                { get label() { return t("Rename / cover / default page style"); }, onSelect: () => setFormOpen(menuFor) },
                 {
-                  label: "Move earlier",
+                  get label() { return t("Move earlier"); },
                   disabled: notebooks[0]?.id === menuFor.id,
                   onSelect: () => moveNotebook(menuFor.id, -1),
                 },
                 {
-                  label: "Move later",
+                  get label() { return t("Move later"); },
                   disabled: notebooks[notebooks.length - 1]?.id === menuFor.id,
                   onSelect: () => moveNotebook(menuFor.id, 1),
                 },
-                { label: "Delete", danger: true, onSelect: () => setDeleting(menuFor) },
+                { get label() { return t("Delete"); }, danger: true, onSelect: () => setDeleting(menuFor) },
               ]
             : []
         }
@@ -225,16 +225,16 @@ export default function Bookshelf() {
 
       <ConfirmSheet
         open={deleting !== null}
-        title="Delete notebook"
+        title={t("Delete notebook")}
         danger
-        confirmText="Move to trash"
+        confirmText={t("Move to trash")}
         message={
           <>
             "{deleting?.name}" and its {deleting ? (pages.get(deleting.id)?.length ?? 0) : 0}{" "}
             {(deleting ? (pages.get(deleting.id)?.length ?? 0) : 0) === 1 ? "page" : "pages"} will be
             moved to the trash. You can restore them from Settings → Trash.
             <br />
-            Finished stickers in your library won't be deleted.
+            {t("Finished stickers in your library won't be deleted.")}
           </>
         }
         onClose={() => setDeleting(null)}
@@ -242,7 +242,7 @@ export default function Bookshelf() {
           if (!deleting) return;
           try {
             await trashNotebook(deleting.id);
-            toast("Moved to trash");
+            toast(t("Moved to trash"));
           } catch (err) {
             toast(describeError(err), "error");
           }

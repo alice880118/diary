@@ -5,6 +5,7 @@ import { PageStylePicker } from "../page/PageStylePicker";
 import { Icon } from "../shell/Icon";
 import { COVERS } from "./covers";
 import { NotebookCover } from "./NotebookCover";
+import { t } from "../i18n";
 
 export interface NotebookFormValue {
   name: string;
@@ -32,9 +33,9 @@ export function NotebookForm({
 
   const trimmed = name.trim();
   const error = !trimmed
-    ? "Enter a notebook name"
+    ? t("Enter a notebook name")
     : trimmed.length > NAME_MAX
-      ? `Name must be ${NAME_MAX} characters or fewer`
+      ? t("Name must be {NAME_MAX} characters or fewer", { NAME_MAX })
       : null;
 
   return (
@@ -48,11 +49,11 @@ export function NotebookForm({
       }}
     >
       <div style={{ display: "flex", justifyContent: "center", margin: "8px 0 18px" }}>
-        <NotebookCover cover={cover} name={trimmed || "My diary"} width={120} />
+        <NotebookCover cover={cover} name={trimmed || t("My diary")} width={120} />
       </div>
       <label className="field">
         <span className="field-label">
-          <span>Name</span>
+          <span>{t("Name")}</span>
           <span>
             {trimmed.length}/{NAME_MAX}
           </span>
@@ -60,14 +61,14 @@ export function NotebookForm({
         <input
           className={`input${touched && error ? " is-error" : ""}`}
           value={name}
-          placeholder="e.g. Everyday life, Travel journal"
+          placeholder={t("e.g. Everyday life, Travel journal")}
           onChange={(e) => setName(e.target.value)}
           onBlur={() => setTouched(true)}
         />
         {touched && error ? <span className="field-error">{error}</span> : null}
       </label>
       <div className="field">
-        <span className="field-label">Cover</span>
+        <span className="field-label">{t("Cover")}</span>
         <div className="hscroll" style={{ paddingBottom: 8 }}>
           {/* 1fr columns in a max-content grid all take the widest option's width. */}
           <div style={{ display: "grid", gridAutoFlow: "column", gridAutoColumns: "1fr", gap: 8, width: "max-content" }}>
@@ -77,7 +78,7 @@ export function NotebookForm({
                 type="button"
                 onClick={() => setCover(c.id)}
                 aria-pressed={cover === c.id}
-                aria-label={c.label}
+                aria-label={t(c.label)}
                 style={{
                   position: "relative",
                   display: "flex",
@@ -92,7 +93,7 @@ export function NotebookForm({
               >
                 <NotebookCover cover={c.id} name="" width={52} />
                 <div className="small" style={{ marginTop: 6, whiteSpace: "nowrap", textAlign: "center" }}>
-                  {c.label}
+                  {t(c.label)}
                 </div>
                 {cover === c.id ? (
                   <span
@@ -121,14 +122,14 @@ export function NotebookForm({
       </div>
       <div className="field">
         <span className="field-label">
-          Default page style
-          <span>{PAGE_STYLES.find((s) => s.id === style)?.label}</span>
+          {t("Default page style")}
+          <span>{t(PAGE_STYLES.find((s) => s.id === style)?.label ?? "")}</span>
         </span>
         <PageStylePicker value={style} onChange={setStyle} />
-        <span className="muted small">New pages use this style. You can change it for each page later.</span>
+        <span className="muted small">{t("New pages use this style. You can change it for each page later.")}</span>
       </div>
       <button type="submit" className="btn btn-primary btn-block" disabled={busy}>
-        {busy ? "Working…" : submitText}
+        {busy ? t("Working…") : submitText}
       </button>
     </form>
   );

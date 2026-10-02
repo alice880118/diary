@@ -16,6 +16,7 @@ import { computeMonthPreview } from "~/packages/notebook/monthPreview";
 import { Icon } from "~/packages/shell/Icon";
 import { AppHeader, BackButton, EmptyState, Screen } from "~/packages/shell/Layout";
 import { useToast } from "~/packages/shell/toast";
+import { t, tn } from "~/packages/i18n";
 
 export default function MonthOverview() {
   const { nid = "" } = useParams();
@@ -41,8 +42,8 @@ export default function MonthOverview() {
   const nb = data.data?.nb;
   if (!nb || nb.deletedAt) {
     return (
-      <Screen header={<AppHeader title="Notebook not found" left={<BackButton to="/diary" />} />}>
-        <EmptyState title="This notebook doesn't exist or is in the trash" hint="You can restore it from Settings → Trash." />
+      <Screen header={<AppHeader title={t("Notebook not found")} left={<BackButton to="/diary" />} />}>
+        <EmptyState title={t("This notebook doesn't exist or is in the trash")} hint={t("You can restore it from Settings → Trash.")} />
       </Screen>
     );
   }
@@ -65,10 +66,10 @@ export default function MonthOverview() {
       header={
         <AppHeader
           title={nb.name}
-          subtitle={`${year} · ${yearPages.length} ${yearPages.length === 1 ? "page" : "pages"}`}
+          subtitle={`${year} · ${tn(yearPages.length, "{n} page", "{n} pages")}`}
           left={<BackButton to="/diary" />}
           right={
-            <button type="button" className="icon-btn" aria-label="New entry" onClick={() => setAdding(true)}>
+            <button type="button" className="icon-btn" aria-label={t("New entry")} onClick={() => setAdding(true)}>
               <Icon name="plus" />
             </button>
           }
@@ -80,7 +81,7 @@ export default function MonthOverview() {
           <button
             type="button"
             className="icon-btn"
-            aria-label="Previous year"
+            aria-label={t("Previous year")}
             onClick={() => setParams({ y: String(year - 1) })}
           >
             <Icon name="chevronLeft" />
@@ -100,7 +101,7 @@ export default function MonthOverview() {
           <button
             type="button"
             className="icon-btn"
-            aria-label="Next year"
+            aria-label={t("Next year")}
             onClick={() => setParams({ y: String(year + 1) })}
           >
             <Icon name="chevronRight" />
@@ -128,14 +129,14 @@ export default function MonthOverview() {
           style={{ marginTop: 18 }}
           onClick={() => setAdding(true)}
         >
-          <Icon name="plus" size={18} /> New entry
+          <Icon name="plus" size={18} /> {t("New entry")}
         </button>
       </div>
       <DateSheet
         open={adding}
-        title="New entry"
+        title={t("New entry")}
         initial={todayLocal()}
-        confirmText="Create and edit"
+        confirmText={t("Create and edit")}
         onClose={() => setAdding(false)}
         onConfirm={(d) => {
           void addPage(d);

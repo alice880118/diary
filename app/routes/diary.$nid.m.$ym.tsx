@@ -1,7 +1,7 @@
 import { useNavigate, useParams } from "@remix-run/react";
 import { useState } from "react";
 import { useLive } from "~/packages/db/events";
-import { formatDate, formatDateShort, formatYm, monthName, todayLocal, ymOf } from "~/packages/db/id";
+import { formatDate, formatDateShort, formatYm, todayLocal, ymOf } from "~/packages/db/id";
 import { describeError } from "~/packages/db/idb";
 import {
   createPage,
@@ -23,6 +23,7 @@ import { Icon } from "~/packages/shell/Icon";
 import { AppHeader, BackButton, EmptyState, Screen } from "~/packages/shell/Layout";
 import { ConfirmSheet, Menu } from "~/packages/shell/Sheet";
 import { useToast } from "~/packages/shell/toast";
+import { t } from "~/packages/i18n";
 
 function shiftYm(ym: string, delta: number) {
   const [y, m] = ym.split("-").map(Number);
@@ -51,13 +52,12 @@ export default function MonthRecords() {
 
   if (!/^\d{4}-\d{2}$/.test(ym)) {
     return (
-      <Screen header={<AppHeader title="Invalid month" left={<BackButton to={`/diary/${nid}`} />} />}>
-        <EmptyState title="This month isn't valid" />
+      <Screen header={<AppHeader title={t("Invalid month")} left={<BackButton to={`/diary/${nid}`} />} />}>
+        <EmptyState title={t("This month isn't valid")} />
       </Screen>
     );
   }
   const year = ym.slice(0, 4);
-  const month = Number(ym.slice(5, 7));
   const back = `/diary/${nid}?y=${year}`;
 
   if (!data.data) {
@@ -66,8 +66,8 @@ export default function MonthRecords() {
   const { nb, pages, overview } = data.data;
   if (!nb || nb.deletedAt) {
     return (
-      <Screen header={<AppHeader title="Notebook not found" left={<BackButton to="/diary" />} />}>
-        <EmptyState title="This notebook doesn't exist or is in the trash" />
+      <Screen header={<AppHeader title={t("Notebook not found")} left={<BackButton to="/diary" />} />}>
+        <EmptyState title={t("This notebook doesn't exist or is in the trash")} />
       </Screen>
     );
   }
@@ -90,11 +90,11 @@ export default function MonthRecords() {
     <Screen
       header={
         <AppHeader
-          title={`${monthName(month)} ${year}`}
+          title={formatYm(ym)}
           subtitle={nb.name}
           left={<BackButton to={back} />}
           right={
-            <button type="button" className="icon-btn" aria-label="New page" onClick={() => setAdding(true)}>
+            <button type="button" className="icon-btn" aria-label={t("New page")} onClick={() => setAdding(true)}>
               <Icon name="plus" />
             </button>
           }
@@ -104,10 +104,10 @@ export default function MonthRecords() {
       <div className="pad">
         <div className="row-between" style={{ marginBottom: 12 }}>
           <button type="button" className="btn btn-sm" onClick={() => navigate(`/diary/${nid}/m/${shiftYm(ym, -1)}`, { replace: true })}>
-            <Icon name="chevronLeft" size={16} /> Previous month
+            <Icon name="chevronLeft" size={16} /> {t("Previous month")}
           </button>
           <button type="button" className="btn btn-sm" onClick={() => navigate(`/diary/${nid}/m/${shiftYm(ym, 1)}`, { replace: true })}>
-            Next month <Icon name="chevronRight" size={16} />
+            {t("Next month")} <Icon name="chevronRight" size={16} />
           </button>
         </div>
 
@@ -117,23 +117,23 @@ export default function MonthRecords() {
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="muted small">
-              Month highlight{preview.highlightManual ? " (manual)" : " (auto)"}
+              {t("Month highlight")} {preview.highlightManual ? t("(manual)") : t("(auto)")}
             </div>
             <div style={{ fontWeight: 600, margin: "4px 0 8px", lineHeight: 1.4 }}>
-              {preview.highlight || "No entries yet"}
+              {preview.highlight || t("No entries yet")}
             </div>
             <button type="button" className="btn btn-sm" onClick={() => setEditPreview(true)}>
-              <Icon name="edit" size={16} /> Edit month preview
+              <Icon name="edit" size={16} /> {t("Edit month preview")}
             </button>
           </div>
         </div>
 
         {monthPages.length === 0 ? (
           <EmptyState
-            title="No entries this month"
+            title={t("No entries this month")}
             action={
               <button type="button" className="btn btn-primary" onClick={() => setAdding(true)}>
-                <Icon name="plus" size={18} /> Add first page
+                <Icon name="plus" size={18} /> {t("Add first page")}
               </button>
             }
           />
@@ -145,7 +145,7 @@ export default function MonthRecords() {
                   type="button"
                   onClick={() => navigate(`/page/${p.id}`)}
                   style={{ border: 0, padding: 0, background: "none", cursor: "pointer" }}
-                  aria-label={`Open page for ${formatDate(p.date)}`}
+                  aria-label={t("Open page for {x}", { x: formatDate(p.date) })}
                 >
                   <PageSurface page={p} width={100} thumb />
                 </button>
@@ -155,7 +155,7 @@ export default function MonthRecords() {
                     type="button"
                     className="icon-btn"
                     style={{ minWidth: 36, height: 36 }}
-                    aria-label="Page actions"
+                    aria-label={t("Page actions")}
                     onClick={() => setMenuFor(p)}
                   >
                     <Icon name="more" size={18} />
@@ -167,30 +167,30 @@ export default function MonthRecords() {
         )}
         {monthPages.length ? (
           <button type="button" className="btn btn-block" style={{ marginTop: 18 }} onClick={() => setAdding(true)}>
-            <Icon name="plus" size={18} /> New page
+            <Icon name="plus" size={18} /> {t("New page")}
           </button>
         ) : null}
       </div>
 
       <DateSheet
         open={adding}
-        title="New page"
+        title={t("New page")}
         initial={defaultDate}
-        confirmText="Create and edit"
+        confirmText={t("Create and edit")}
         onClose={() => setAdding(false)}
         onConfirm={(d) => void add(d)}
       />
       <DateSheet
         open={dateFor !== null}
-        title="Change date"
+        title={t("Change date")}
         initial={dateFor?.date ?? today}
-        confirmText="Save"
+        confirmText={t("Save")}
         onClose={() => setDateFor(null)}
         onConfirm={async (d) => {
           if (!dateFor) return;
           try {
             await setPageDate(dateFor.id, d);
-            toast(ymOf(d) === ym ? "Date changed" : `Moved to ${formatYm(ymOf(d))}`, "success");
+            toast(ymOf(d) === ym ? t("Date changed") : t("Moved to {x}", { x: formatYm(ymOf(d)) }), "success");
           } catch (err) {
             toast(describeError(err), "error");
           }
@@ -204,31 +204,31 @@ export default function MonthRecords() {
         items={
           menuFor
             ? [
-                { label: "Read", onSelect: () => navigate(`/page/${menuFor.id}`) },
-                { label: "Edit", onSelect: () => navigate(`/page/${menuFor.id}/edit`) },
-                { label: "Change date", onSelect: () => setDateFor(menuFor) },
+                { get label() { return t("Read"); }, onSelect: () => navigate(`/page/${menuFor.id}`) },
+                { get label() { return t("Edit"); }, onSelect: () => navigate(`/page/${menuFor.id}/edit`) },
+                { get label() { return t("Change date"); }, onSelect: () => setDateFor(menuFor) },
                 {
-                  label: "Duplicate page",
+                  get label() { return t("Duplicate page"); },
                   onSelect: async () => {
                     try {
                       await duplicatePage(menuFor.id);
-                      toast("Page duplicated", "success");
+                      toast(t("Page duplicated"), "success");
                     } catch (err) {
                       toast(describeError(err), "error");
                     }
                   },
                 },
-                { label: "Delete", danger: true, onSelect: () => setDeleting(menuFor) },
+                { get label() { return t("Delete"); }, danger: true, onSelect: () => setDeleting(menuFor) },
               ]
             : []
         }
       />
       <ConfirmSheet
         open={deleting !== null}
-        title="Delete page"
+        title={t("Delete page")}
         danger
-        confirmText="Move to trash"
-        message="The page will be moved to the trash. You can restore it from Settings → Trash."
+        confirmText={t("Move to trash")}
+        message={t("The page will be moved to the trash. You can restore it from Settings → Trash.")}
         onClose={() => setDeleting(null)}
         onConfirm={async () => {
           if (!deleting) return;

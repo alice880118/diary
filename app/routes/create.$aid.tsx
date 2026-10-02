@@ -4,6 +4,7 @@ import { CreateEditor } from "~/packages/create/CreateEditor";
 import { getArtwork } from "~/packages/db/repo";
 import type { Artwork } from "~/packages/db/types";
 import { AppHeader, BackButton, EmptyState, Screen } from "~/packages/shell/Layout";
+import { t } from "~/packages/i18n";
 
 function safeReturn(v: string | null) {
   return v && v.startsWith("/") && !v.startsWith("//") ? v : null;
@@ -27,12 +28,12 @@ export default function CreateArtwork() {
   }, [aid]);
 
   if (art === undefined) {
-    return <Screen header={<AppHeader title="Loading…" />}>{null}</Screen>;
+    return <Screen header={<AppHeader title={t("Loading…")} />}>{null}</Screen>;
   }
   if (art === null) {
     return (
-      <Screen header={<AppHeader title="Artwork not found" left={<BackButton to="/create" />} />}>
-        <EmptyState title="This artwork doesn't exist or is in the trash" />
+      <Screen header={<AppHeader title={t("Artwork not found")} left={<BackButton to="/create" />} />}>
+        <EmptyState title={t("This artwork doesn't exist or is in the trash")} />
       </Screen>
     );
   }

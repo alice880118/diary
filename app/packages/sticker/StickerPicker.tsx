@@ -4,6 +4,7 @@ import { listStickers } from "../db/repo";
 import type { Sticker } from "../db/types";
 import { Icon } from "../shell/Icon";
 import { StickerThumb } from "./StickerThumb";
+import { t } from "../i18n";
 
 export function StickerPicker({
   onPick,
@@ -29,7 +30,7 @@ export function StickerPicker({
         <div className="row" style={{ flex: 1, position: "relative" }}>
           <input
             className="input"
-            placeholder="Search stickers"
+            placeholder={t("Search stickers")}
             value={q}
             onChange={(e) => setQ(e.target.value)}
             style={{ paddingLeft: 36 }}
@@ -39,13 +40,13 @@ export function StickerPicker({
           </span>
         </div>
         <button type="button" className="btn" onClick={onCreate}>
-          <Icon name="plus" size={18} /> New
+          <Icon name="plus" size={18} /> {t("New")}
         </button>
       </div>
       {cats.length ? (
         <div className="hscroll" style={{ marginBottom: 10 }}>
           <button type="button" className={`chip${cat === null ? " is-active" : ""}`} onClick={() => setCat(null)}>
-            All
+            {t("All")}
           </button>
           {cats.map((c) => (
             <button key={c} type="button" className={`chip${cat === c ? " is-active" : ""}`} onClick={() => setCat(c)}>
@@ -56,15 +57,15 @@ export function StickerPicker({
       ) : null}
       {all.length === 0 ? (
         <div className="empty-state" style={{ padding: 24 }}>
-          <div className="empty-title">No stickers yet</div>
-          <div className="empty-hint">Draw or import a photo in Create to make your first sticker.</div>
+          <div className="empty-title">{t("No stickers yet")}</div>
+          <div className="empty-hint">{t("Draw or import a photo in Create to make your first sticker.")}</div>
           <button type="button" className="btn btn-primary" style={{ marginTop: 12 }} onClick={onCreate}>
-            Create sticker
+            {t("Create sticker")}
           </button>
         </div>
       ) : list.length === 0 ? (
         <div className="empty-state" style={{ padding: 24 }}>
-          <div className="empty-title">No matching stickers</div>
+          <div className="empty-title">{t("No matching stickers")}</div>
           <button
             type="button"
             className="btn"
@@ -74,7 +75,7 @@ export function StickerPicker({
               setCat(null);
             }}
           >
-            Clear filters
+            {t("Clear filters")}
           </button>
         </div>
       ) : (

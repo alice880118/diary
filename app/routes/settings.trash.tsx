@@ -6,6 +6,7 @@ import { listTrash, purgeTrash, restoreTrash, type TrashEntry } from "~/packages
 import { AppHeader, BackButton, EmptyState, Screen } from "~/packages/shell/Layout";
 import { ConfirmSheet } from "~/packages/shell/Sheet";
 import { useToast } from "~/packages/shell/toast";
+import { t, tn } from "~/packages/i18n";
 
 const KIND_LABEL: Record<TrashEntry["kind"], string> = {
   notebook: "Notebook",
@@ -23,11 +24,11 @@ export default function Trash() {
   const list = trash.data ?? [];
 
   return (
-    <Screen header={<AppHeader title="Trash" left={<BackButton to="/settings" />} />} bodyStyle={{ padding: 16 }}>
-      <p className="muted small" style={{ marginTop: 0 }}>Deleted items stay here until you delete them permanently. Restoring a page also restores its notebook.</p>
+    <Screen header={<AppHeader title={t("Trash")} left={<BackButton to="/settings" />} />} bodyStyle={{ padding: 16 }}>
+      <p className="muted small" style={{ marginTop: 0 }}>{t("Deleted items stay here until you delete them permanently. Restoring a page also restores its notebook.")}</p>
       {trash.error ? <div className="save-error-bar">{trash.error}</div> : null}
       {!trash.loading && list.length === 0 ? (
-        <EmptyState title="Trash is empty" />
+        <EmptyState title={t("Trash is empty")} />
       ) : (
         <>
           {list.map((e) => (
@@ -35,7 +36,7 @@ export default function Trash() {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.title}</div>
                 <div className="muted small">
-                  <span className="badge">{KIND_LABEL[e.kind]}</span> {e.detail} · Deleted {formatTimestamp(e.deletedAt, false)}
+                  <span className="badge">{t(KIND_LABEL[e.kind])}</span> {e.detail} · {t("Deleted {x}", { x: formatTimestamp(e.deletedAt, false) })}
                 </div>
               </div>
               <button
@@ -43,30 +44,30 @@ export default function Trash() {
                 className="btn btn-sm"
                 onClick={() =>
                   void restoreTrash(e)
-                    .then(() => toast("Restored", "success"))
+                    .then(() => toast(t("Restored"), "success"))
                     .catch((err) => toast(describeError(err), "error"))
                 }
               >
-                Restore
+                {t("Restore")}
               </button>
               <button type="button" className="btn btn-sm btn-danger-text" onClick={() => setPurge(e)}>
-                Delete permanently
+                {t("Delete permanently")}
               </button>
             </div>
           ))}
           {list.length > 1 ? (
             <button type="button" className="btn btn-block btn-danger-text" style={{ marginTop: 12 }} onClick={() => setPurgeAll(true)}>
-              Empty trash
+              {t("Empty trash")}
             </button>
           ) : null}
         </>
       )}
       <ConfirmSheet
         open={purge !== null}
-        title="Delete permanently?"
+        title={t("Delete permanently?")}
         danger
-        confirmText="Delete permanently"
-        message={`"${purge?.title ?? ""}" will be deleted and can't be recovered. Stickers already in your diary won't be affected.`}
+        confirmText={t("Delete permanently")}
+        message={t("\"{title}\" will be deleted and can't be recovered. Stickers already in your diary won't be affected.", { title: purge?.title ?? "" })}
         onClose={() => setPurge(null)}
         onConfirm={() => {
           const e = purge;
@@ -76,16 +77,16 @@ export default function Trash() {
       />
       <ConfirmSheet
         open={purgeAll}
-        title="Empty trash?"
+        title={t("Empty trash?")}
         danger
-        confirmText="Delete all permanently"
-        message={`${list.length} ${list.length === 1 ? "item" : "items"} will be permanently deleted. This can't be undone.`}
+        confirmText={t("Delete all permanently")}
+        message={tn(list.length, "{n} item will be permanently deleted. This can't be undone.", "{n} items will be permanently deleted. This can't be undone.")}
         onClose={() => setPurgeAll(false)}
         onConfirm={async () => {
           setPurgeAll(false);
           try {
             for (const e of list) await purgeTrash(e);
-            toast("Trash emptied", "success");
+            toast(t("Trash emptied"), "success");
           } catch (err) {
             toast(describeError(err), "error");
           }

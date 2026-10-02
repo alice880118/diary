@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { emitChange } from "../db/events";
 import { newId } from "../db/id";
 import { getAll, txGet, txPut, withTx } from "../db/idb";
@@ -169,9 +170,9 @@ export async function readBackup(file: File): Promise<RestorePlan> {
     try {
       bytes = base64ToBytes(a.data);
     } catch {
-      throw new BackupError(`Asset "${a.name || a.id}" is corrupted.`);
+      throw new BackupError(t("Asset \"{name}\" is corrupted.", { name: a.name || a.id }));
     }
-    if ((await hashBytes(bytes)) !== a.hash) throw new BackupError(`Checksum mismatch for asset "${a.name || a.id}".`);
+    if ((await hashBytes(bytes)) !== a.hash) throw new BackupError(t("Checksum mismatch for asset \"{name}\".", { name: a.name || a.id }));
   }
 
   const local = await Promise.all([

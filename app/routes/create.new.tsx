@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { createBlankArtwork } from "~/packages/art/create";
 import { describeError } from "~/packages/db/idb";
 import { AppHeader, BackButton, EmptyState, Screen } from "~/packages/shell/Layout";
+import { t } from "~/packages/i18n";
 
 /** Creates a blank artwork and replaces itself with the studio. */
 export default function CreateNew() {
@@ -24,8 +25,8 @@ export default function CreateNew() {
   }, [navigate, params]);
 
   return (
-    <Screen header={<AppHeader title="New artwork" left={<BackButton to="/create" />} />}>
-      {error ? <EmptyState title="Couldn't create artwork" hint={error} /> : <EmptyState title="Creating…" />}
+    <Screen header={<AppHeader title={t("New artwork")} left={<BackButton to="/create" />} />}>
+      {error ? <EmptyState title={t("Couldn't create artwork")} hint={error} /> : <EmptyState title={t("Creating…")} />}
     </Screen>
   );
 }

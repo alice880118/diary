@@ -1,6 +1,7 @@
 import { todayLocal } from "../db/id";
 import { PAGE_H, PAGE_W, type PageStyle } from "../db/types";
 import { PAGE_STYLES, PageBackground } from "./PageBackground";
+import { t } from "../i18n";
 
 export function PageStylePicker({
   value,
@@ -48,7 +49,7 @@ export function PageStylePicker({
             </div>
             <div className="small" style={{ marginTop: 4, fontWeight: active ? 600 : 400 }}>
               {active ? "✓ " : ""}
-              {s.label}
+              {t(s.label)}
             </div>
           </button>
         );

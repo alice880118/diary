@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ART_H, ART_W, type Stroke } from "../db/types";
 import type { Box } from "../drawing/geometry";
@@ -478,7 +479,7 @@ export function ArtCanvas({
       <button
         type="button"
         className="zoom-chip"
-        aria-label={view.z > 1.01 ? "Reset zoom" : "Zoom"}
+        aria-label={view.z > 1.01 ? t("Reset zoom") : t("Zoom")}
         onPointerDown={(e) => e.stopPropagation()}
         onClick={snapHome}
       >

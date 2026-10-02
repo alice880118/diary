@@ -1,3 +1,4 @@
+import { describeError } from "../db/idb";
 import { useEffect, useState } from "react";
 import { useLive } from "../db/events";
 import { monthName } from "../db/id";
@@ -9,6 +10,7 @@ import { snapFromSticker } from "../sticker/snap";
 import { StickerArt } from "../sticker/StickerArt";
 import { MonthCard } from "./MonthCard";
 import { computeMonthPreview } from "./monthPreview";
+import { t } from "../i18n";
 
 function SnapThumb({ snap, active, onPick }: { snap: StickerSnap; active: boolean; onPick: () => void }) {
   const size = 64;
@@ -101,10 +103,10 @@ export function MonthPreviewSheet({
   const save = async (next: MonthlyOverview) => {
     try {
       await saveMonth(next);
-      toast("Month preview updated", "success");
+      toast(t("Month preview updated"), "success");
       onClose();
     } catch (err) {
-      toast(err instanceof Error ? err.message : String(err), "error");
+      toast(describeError(err), "error");
     }
   };
 
@@ -121,10 +123,10 @@ export function MonthPreviewSheet({
             className="btn btn-ghost"
             onClick={() => save({ ...overview, highlight: null, sticker: null })}
           >
-            Reset to default
+            {t("Reset to default")}
           </button>
           <button type="button" className="btn btn-primary" onClick={() => save(draft)}>
-            Save
+            {t("Save")}
           </button>
         </div>
       }
@@ -135,19 +137,19 @@ export function MonthPreviewSheet({
         </div>
       </div>
       <div className="muted small" style={{ textAlign: "center", marginBottom: 12 }}>
-        Highlight: {preview.highlightManual ? "manual" : "auto"} · Sticker:{" "}
-        {preview.stickerManual ? "manual" : preview.sticker ? "auto (first on latest page)" : "auto (page thumbnail)"}
+        {t("Highlight")}: {preview.highlightManual ? t("manual") : t("auto")} · {t("Sticker")}:{" "}
+        {preview.stickerManual ? t("manual") : preview.sticker ? t("auto (first on latest page)") : t("auto (page thumbnail)")}
       </div>
       <label className="field">
         <span className="field-label">
-          <span>Month highlight</span>
+          <span>{t("Month highlight")}</span>
           <span>{text.length}/40</span>
         </span>
         <input
           className="input"
           value={text}
           maxLength={40}
-          placeholder="Leave blank to use text from the latest page"
+          placeholder={t("Leave blank to use text from the latest page")}
           onChange={(e) => setText(e.target.value)}
         />
         {text ? (
@@ -158,17 +160,17 @@ export function MonthPreviewSheet({
       </label>
       <div className="field">
         <span className="field-label">
-          <span>Cover sticker</span>
+          <span>{t("Cover sticker")}</span>
           {sticker ? (
             <button type="button" className="btn btn-sm btn-ghost" onClick={() => setSticker(null)}>
               Clear (use default)
             </button>
           ) : null}
         </span>
-        <span className="muted small">Only affects the month card preview. It won't add the sticker to any page.</span>
+        <span className="muted small">{t("Only affects the month card preview. It won't add the sticker to any page.")}</span>
         {usedInMonth.length ? (
           <>
-            <div className="small" style={{ marginTop: 6 }}>Used this month</div>
+            <div className="small" style={{ marginTop: 6 }}>{t("Used this month")}</div>
             <div className="hscroll">
               {usedInMonth.map((s) => (
                 <SnapThumb key={`${s.stickerId}@${s.version}`} snap={s} active={isSame(s)} onPick={() => setSticker(s)} />
@@ -176,7 +178,7 @@ export function MonthPreviewSheet({
             </div>
           </>
         ) : null}
-        <div className="small" style={{ marginTop: 6 }}>Library</div>
+        <div className="small" style={{ marginTop: 6 }}>{t("Library")}</div>
         {library.length ? (
           <div className="hscroll">
             {library.map((s) => (
@@ -184,7 +186,7 @@ export function MonthPreviewSheet({
             ))}
           </div>
         ) : (
-          <span className="muted small">No stickers yet. Make one in Create.</span>
+          <span className="muted small">{t("No stickers yet. Make one in Create.")}</span>
         )}
       </div>
     </Sheet>

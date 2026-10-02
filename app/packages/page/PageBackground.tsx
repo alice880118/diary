@@ -1,13 +1,14 @@
 import { memo, useId } from "react";
 import { formatDate, weekdayOf } from "../db/id";
 import { PAGE_H, PAGE_W, type PageStyle } from "../db/types";
+import { t } from "../i18n";
 
 export const PAGE_STYLES: { id: PageStyle; label: string }[] = [
-  { id: "lined", label: "Lined" },
-  { id: "blank", label: "Blank" },
-  { id: "dot", label: "Dot grid" },
-  { id: "grid", label: "Grid" },
-  { id: "dated", label: "Dated" },
+  { id: "lined", get label() { return t("Lined"); } },
+  { id: "blank", get label() { return t("Blank"); } },
+  { id: "dot", get label() { return t("Dot grid"); } },
+  { id: "grid", get label() { return t("Grid"); } },
+  { id: "dated", get label() { return t("Dated"); } },
 ];
 
 const LINE = "#c9d6e6";
@@ -84,7 +85,7 @@ function DatedHeader({ date }: { date: string }) {
         {weekdayOf(date)}
       </text>
       <text x={430} y={78} fontSize={22} fill="#9a8f82">
-        Title
+        {t("Title")}
       </text>
       <line x1={430} x2={850} y1={122} y2={122} stroke="#bfb3a3" strokeWidth={2} />
       <line x1={40} x2={860} y1={DATED_HEADER_H - 20} y2={DATED_HEADER_H - 20} stroke="#3a332c" strokeWidth={2.5} />

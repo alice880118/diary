@@ -3,6 +3,7 @@ import { StickerArt } from "../sticker/StickerArt";
 import { PageSurface } from "../page/PageSurface";
 import { Icon } from "../shell/Icon";
 import type { MonthPreview } from "./monthPreview";
+import { t } from "../i18n";
 
 export function MonthVisual({ preview, size }: { preview: MonthPreview; size: number }) {
   if (preview.sticker) {
@@ -90,7 +91,7 @@ export function MonthCard({
         }}
       >
         {empty ? (
-          <span className="muted" aria-label="Add page">
+          <span className="muted" aria-label={t("Add page")}>
             <Icon name="plus" size={20} />
           </span>
         ) : (

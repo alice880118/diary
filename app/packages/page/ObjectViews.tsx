@@ -15,6 +15,7 @@ import { StrokeCanvas } from "../drawing/StrokeCanvas";
 import type { PeelState } from "../sticker/geometry";
 import { StickerArt } from "../sticker/StickerArt";
 import { fontStack } from "./fonts";
+import { t } from "../i18n";
 
 export function objectFrameStyle(o: PageObject): CSSProperties {
   return {
@@ -49,7 +50,7 @@ export const TextView = forwardRef<HTMLDivElement, { o: TextObject }>(function T
         overflowWrap: "anywhere",
       }}
     >
-      {o.text || <span style={{ opacity: 0.35 }}>Enter text</span>}
+      {o.text || <span style={{ opacity: 0.35 }}>{t("Enter text")}</span>}
     </div>
   );
 });
@@ -57,7 +58,7 @@ export const TextView = forwardRef<HTMLDivElement, { o: TextObject }>(function T
 export function ImageView({ o }: { o: ImageObject }) {
   const { url, missing } = useAssetUrl(o.assetId);
   if (missing) {
-    return <div className="sticker-missing" style={{ position: "absolute", inset: 0 }}>Missing image</div>;
+    return <div className="sticker-missing" style={{ position: "absolute", inset: 0 }}>{t("Missing image")}</div>;
   }
   return (
     <div
@@ -104,25 +105,25 @@ export function StickerView({
 }
 
 export const NOTE_COLORS = [
-  { id: "#fff3a6", label: "Yellow" },
-  { id: "#ffd6df", label: "Pink" },
-  { id: "#cfe8ff", label: "Blue" },
-  { id: "#d8f5c8", label: "Green" },
-  { id: "#e8d3b0", label: "Kraft" },
-  { id: "#fffdf6", label: "White" },
+  { id: "#fff3a6", get label() { return t("Yellow"); } },
+  { id: "#ffd6df", get label() { return t("Pink"); } },
+  { id: "#cfe8ff", get label() { return t("Blue"); } },
+  { id: "#d8f5c8", get label() { return t("Green"); } },
+  { id: "#e8d3b0", get label() { return t("Kraft"); } },
+  { id: "#fffdf6", get label() { return t("White"); } },
 ];
 
 export const NOTE_SHAPES = [
-  { id: "square", label: "Square" },
-  { id: "rounded", label: "Rounded" },
-  { id: "torn", label: "Torn" },
-  { id: "cloud", label: "Cloud" },
+  { id: "square", get label() { return t("Square"); } },
+  { id: "rounded", get label() { return t("Rounded"); } },
+  { id: "torn", get label() { return t("Torn"); } },
+  { id: "cloud", get label() { return t("Cloud"); } },
 ] as const;
 
 export const NOTE_FIXES = [
-  { id: "tape", label: "Tape" },
-  { id: "pin", label: "Pin" },
-  { id: "top", label: "Top edge" },
+  { id: "tape", get label() { return t("Tape"); } },
+  { id: "pin", get label() { return t("Pin"); } },
+  { id: "top", get label() { return t("Top edge"); } },
 ] as const;
 
 /** Original (v1) tape, used whenever a note has no tapePattern. */
@@ -132,16 +133,16 @@ const LEGACY_TAPE =
 export const TAPE_COLORS = ["#f3b48b", "#f2a7bd", "#f4d774", "#a8d8b9", "#9cc7ef", "#c3b1e6", "#d7b98e", "#bdbdbd"];
 
 export const TAPE_PATTERNS: { id: TapePattern; label: string }[] = [
-  { id: "solid", label: "Solid" },
-  { id: "stripe", label: "Stripe" },
-  { id: "diagonal", label: "Diagonal" },
-  { id: "dots", label: "Dots" },
-  { id: "gingham", label: "Gingham" },
-  { id: "grid", label: "Grid" },
-  { id: "wave", label: "Wave" },
-  { id: "stars", label: "Stars" },
-  { id: "hearts", label: "Hearts" },
-  { id: "floral", label: "Floral" },
+  { id: "solid", get label() { return t("Solid"); } },
+  { id: "stripe", get label() { return t("Stripe"); } },
+  { id: "diagonal", get label() { return t("Diagonal"); } },
+  { id: "dots", get label() { return t("Dots"); } },
+  { id: "gingham", get label() { return t("Gingham"); } },
+  { id: "grid", get label() { return t("Grid"); } },
+  { id: "wave", get label() { return t("Wave"); } },
+  { id: "stars", get label() { return t("Stars"); } },
+  { id: "hearts", get label() { return t("Hearts"); } },
+  { id: "floral", get label() { return t("Floral"); } },
 ];
 
 /** Washi-tape fill: a light motif over the tape color (made translucent by the caller). */

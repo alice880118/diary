@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import type { Box } from "./geometry";
+import { t } from "../i18n";
 
 export type BoxOp = "move" | "rotate" | 0 | 1 | 2 | 3;
 export type DragPhase = "start" | "move" | "end";
@@ -76,7 +77,7 @@ export function TransformBox({
         key={i}
         className="tbox-hit"
         role="button"
-        aria-label="Resize"
+        aria-label={t("Resize")}
         style={{ left: x - (HIT * k) / 2, top: y - (HIT * k) / 2, width: HIT * k, height: HIT * k, cursor: i % 2 === 0 ? "nwse-resize" : "nesw-resize" }}
         {...handlers(i)}
       >
@@ -105,7 +106,7 @@ export function TransformBox({
           <div
             className="tbox-hit"
             role="button"
-            aria-label="Rotate"
+            aria-label={t("Rotate")}
             style={{ left: w / 2 - (HIT * k) / 2, top: -ROTATE_GAP * k - (HIT * k) / 2, width: HIT * k, height: HIT * k, cursor: "grab" }}
             {...handlers("rotate")}
           >

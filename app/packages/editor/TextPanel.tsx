@@ -1,6 +1,7 @@
 import type { TextObject } from "../db/types";
 import { FONTS, TEXT_COLORS } from "../page/fonts";
 import { Sheet } from "../shell/Sheet";
+import { t } from "../i18n";
 
 export function TextPanel({
   obj,
@@ -12,14 +13,14 @@ export function TextPanel({
   onClose: () => void;
 }) {
   return (
-    <Sheet open={obj !== null} title="Text" onClose={onClose} modal={false}>
+    <Sheet open={obj !== null} title={t("Text")} onClose={onClose} modal={false}>
       {obj ? (
         <>
           <textarea
             className="textarea"
             autoFocus
             value={obj.text}
-            placeholder="Type something…"
+            placeholder={t("Type something…")}
             rows={3}
             onChange={(e) => onChange({ text: e.target.value })}
             style={{ fontSize: 16, minHeight: 72 }}
@@ -33,13 +34,13 @@ export function TextPanel({
                 style={{ fontFamily: f.stack }}
                 onClick={() => onChange({ font: f.id })}
               >
-                {f.label}
+                {t(f.label)}
               </button>
             ))}
           </div>
           <div className="row" style={{ gap: 12 }}>
             <label className="small" style={{ flex: 1 }}>
-              Size {obj.size}
+              {t("Size")} {obj.size}
               <input
                 type="range"
                 min={16}
@@ -56,7 +57,7 @@ export function TextPanel({
                   className={`chip${obj.align === a ? " is-active" : ""}`}
                   onClick={() => onChange({ align: a })}
                 >
-                  {a === "left" ? "Left" : a === "center" ? "Center" : "Right"}
+                  {a === "left" ? t("Left") : a === "center" ? t("Center") : t("Right")}
                 </button>
               ))}
             </div>
@@ -68,11 +69,11 @@ export function TextPanel({
                 type="button"
                 className={`swatch${obj.color === c ? " is-active" : ""}`}
                 style={{ background: c, flex: "0 0 auto", width: 30, height: 30 }}
-                aria-label={`Text color ${c}`}
+                aria-label={t("Text color {c}", { c })}
                 onClick={() => onChange({ color: c })}
               />
             ))}
-            <input type="color" value={obj.color} aria-label="Custom text color" onChange={(e) => onChange({ color: e.target.value })} />
+            <input type="color" value={obj.color} aria-label={t("Custom text color")} onChange={(e) => onChange({ color: e.target.value })} />
           </div>
         </>
       ) : null}

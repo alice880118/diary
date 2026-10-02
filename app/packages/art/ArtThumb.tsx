@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Artwork } from "../db/types";
 import { renderFinal } from "./render";
 import { loadRuntime } from "./runtime";
+import { t } from "../i18n";
 
 let queue: Promise<unknown> = Promise.resolve();
 
@@ -38,6 +39,6 @@ export function ArtThumb({ art, size = 120 }: { art: Artwork; size?: number }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [art.id, art.updatedAt]);
 
-  if (failed) return <div className="muted small">No preview</div>;
+  if (failed) return <div className="muted small">{t("No preview")}</div>;
   return <canvas ref={ref} width={size} height={size} style={{ width: "100%", height: "100%", display: "block" }} />;
 }

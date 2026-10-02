@@ -1,3 +1,4 @@
+import { t, tn } from "../i18n";
 import { emitChange } from "./events";
 import { formatDate, newId, todayLocal, ymOf } from "./id";
 import {
@@ -739,7 +740,7 @@ export async function listTrash(): Promise<TrashEntry[]> {
             kind: "notebook",
             id: n.id,
             title: n.name,
-            detail: `Notebook · ${count} ${count === 1 ? "page" : "pages"}`,
+            detail: `${t("Notebook")} · ${tn(count, "{n} page", "{n} pages")}`,
             deletedAt: n.deletedAt,
           });
         }
@@ -750,7 +751,7 @@ export async function listTrash(): Promise<TrashEntry[]> {
             kind: "page",
             id: p.id,
             title: `Page · ${formatDate(p.date)}`,
-            detail: `Page · ${nbName.get(p.notebookId) ?? "Unknown notebook"}`,
+            detail: `${t("Page")} · ${nbName.get(p.notebookId) ?? t("Unknown notebook")}`,
             deletedAt: p.deletedAt,
           });
         }
@@ -761,7 +762,7 @@ export async function listTrash(): Promise<TrashEntry[]> {
             kind: "sticker",
             id: s.id,
             title: s.name,
-            detail: "Sticker",
+            detail: t("Sticker"),
             deletedAt: s.deletedAt,
           });
         }
@@ -772,7 +773,7 @@ export async function listTrash(): Promise<TrashEntry[]> {
             kind: "artwork",
             id: a.id,
             title: a.name,
-            detail: "Draft",
+            detail: t("Draft"),
             deletedAt: a.deletedAt,
           });
         }
@@ -783,7 +784,7 @@ export async function listTrash(): Promise<TrashEntry[]> {
             kind: "image",
             id: a.id,
             title: a.name || "Imported image",
-            detail: "Imported image",
+            detail: t("Imported image"),
             deletedAt: a.deletedAt,
           });
         }

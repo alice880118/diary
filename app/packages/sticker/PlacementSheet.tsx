@@ -7,6 +7,7 @@ import { createPage, listNotebooks, listPages, sortPagesByDate } from "../db/rep
 import { PageSurface } from "../page/PageSurface";
 import { Sheet } from "../shell/Sheet";
 import { useToast } from "../shell/toast";
+import { t } from "../i18n";
 
 /** Choose a notebook and page (or a new page) to paste a sticker into. */
 export function PlacementSheet({
@@ -54,30 +55,30 @@ export function PlacementSheet({
   return (
     <Sheet
       open={open}
-      title="Add to diary"
+      title={t("Add to diary")}
       onClose={onClose}
       tall
       footer={
         <div className="row-end">
           <button type="button" className="btn" onClick={onClose}>
-            Cancel
+            {t("Cancel")}
           </button>
           <button type="button" className="btn btn-primary" disabled={!pid} onClick={() => void confirm()}>
-            Add
+            {t("Add")}
           </button>
         </div>
       }
     >
       {nbs.length === 0 ? (
         <div className="empty-state" style={{ padding: 24 }}>
-          <div className="empty-title">No notebooks yet</div>
+          <div className="empty-title">{t("No notebooks yet")}</div>
           <button type="button" className="btn btn-primary" style={{ marginTop: 12 }} onClick={() => navigate("/diary")}>
-            Create one
+            {t("Create one")}
           </button>
         </div>
       ) : (
         <>
-          <div className="small" style={{ marginBottom: 4 }}>Notebook</div>
+          <div className="small" style={{ marginBottom: 4 }}>{t("Notebook")}</div>
           <div className="hscroll" style={{ marginBottom: 12 }}>
             {nbs.map((n) => (
               <button
@@ -93,7 +94,7 @@ export function PlacementSheet({
               </button>
             ))}
           </div>
-          <div className="small" style={{ marginBottom: 4 }}>Page</div>
+          <div className="small" style={{ marginBottom: 4 }}>{t("Page")}</div>
           <button
             type="button"
             className="btn btn-block"
@@ -107,7 +108,7 @@ export function PlacementSheet({
             {pid === "new" ? "✓ " : "+ "}New page ({formatDate(todayLocal())})
           </button>
           {(pages.data ?? []).length === 0 ? (
-            <div className="muted small">This notebook has no pages yet. Add a new page to get started.</div>
+            <div className="muted small">{t("This notebook has no pages yet. Add a new page to get started.")}</div>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
               {(pages.data ?? []).map((p) => (

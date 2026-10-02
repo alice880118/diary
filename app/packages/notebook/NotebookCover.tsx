@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import type { CSSProperties } from "react";
 import { coverOf } from "./covers";
 
@@ -46,7 +47,7 @@ export function NotebookCover({
           boxShadow: "0 1px 2px rgba(0,0,0,0.12)",
         }}
       >
-        {name || "Untitled"}
+        {name || t("Untitled")}
       </div>
       <div
         style={{

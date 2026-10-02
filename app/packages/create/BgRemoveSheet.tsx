@@ -1,9 +1,11 @@
+import { describeError } from "../db/idb";
 import { useEffect, useRef, useState } from "react";
 import { createCanvas, ctx2d, persistMask, type ArtRuntime } from "../art/runtime";
 import { maskToCanvas, removeBackground, RemovalCancelled } from "../bgremove/removeBackground";
 import type { ImageLayer } from "../db/types";
 import { Sheet } from "../shell/Sheet";
 import { useToast } from "../shell/toast";
+import { t } from "../i18n";
 
 type Phase = "idle" | "running" | "done" | "failed";
 
@@ -96,10 +98,10 @@ export function BgRemoveSheet({
     } catch (err) {
       if (err instanceof RemovalCancelled) {
         setPhase(mask.current ? "done" : "idle");
-        toast("Background removal cancelled; original kept");
+        toast(t("Background removal cancelled; original kept"));
       } else {
         setPhase("failed");
-        setError(err instanceof Error ? err.message : String(err));
+        setError(describeError(err));
       }
     }
   };
@@ -141,7 +143,7 @@ export function BgRemoveSheet({
   return (
     <Sheet
       open={open}
-      title="Remove background"
+      title={t("Remove background")}
       onClose={() => {
         abort.current?.abort();
         onClose();
@@ -158,7 +160,7 @@ export function BgRemoveSheet({
               onClose();
             }}
           >
-            Use original
+            {t("Use original")}
           </button>
           <button
             type="button"
@@ -171,17 +173,17 @@ export function BgRemoveSheet({
                 onApply(id);
                 onClose();
               } catch (err) {
-                toast(err instanceof Error ? err.message : String(err), "error");
+                toast(describeError(err), "error");
               }
             }}
           >
-            Apply
+            {t("Apply")}
           </button>
         </div>
       }
     >
       {!layer || !img ? (
-        <div className="muted">Image data not found.</div>
+        <div className="muted">{t("Image data not found.")}</div>
       ) : (
         <>
           <div style={{ display: "flex", justifyContent: "center" }}>
@@ -209,49 +211,49 @@ export function BgRemoveSheet({
           {phase === "running" ? (
             <div style={{ margin: "12px 0" }}>
               <div className="row-between small">
-                <span>Processing on device… (nothing is uploaded)</span>
+                <span>{t("Processing on device… (nothing is uploaded)")}</span>
                 <span>{Math.round(progress * 100)}%</span>
               </div>
               <div style={{ height: 8, background: "var(--muted)", borderRadius: 999, overflow: "hidden", margin: "6px 0" }}>
                 <div style={{ width: `${progress * 100}%`, height: "100%", background: "var(--accent)" }} />
               </div>
               <button type="button" className="btn btn-sm" onClick={() => abort.current?.abort()}>
-                Cancel
+                {t("Cancel")}
               </button>
             </div>
           ) : (
             <>
               {error ? <p className="field-error">{error}</p> : null}
               <label className="small">
-                Background tolerance {tolerance}
+                {t("Background tolerance {n}", { n: tolerance })}
                 <input type="range" min={0} max={100} value={tolerance} onChange={(e) => setTolerance(Number(e.target.value))} />
               </label>
               <div className="row-wrap" style={{ margin: "6px 0 10px" }}>
                 <button type="button" className="btn btn-primary btn-sm" onClick={() => void run()}>
-                  {phase === "idle" ? "Remove background" : "Remove again"}
+                  {phase === "idle" ? t("Remove background") : t("Remove again")}
                 </button>
                 {mask.current ? (
                   <button type="button" className={`chip${showOriginal ? " is-active" : ""}`} onClick={() => setShowOriginal((v) => !v)}>
-                    {showOriginal ? "Showing original" : "Compare with original"}
+                    {showOriginal ? t("Showing original") : t("Compare with original")}
                   </button>
                 ) : null}
               </div>
-              <div className="section-title" style={{ marginTop: 4 }}>Edge touch-up</div>
+              <div className="section-title" style={{ marginTop: 4 }}>{t("Edge touch-up")}</div>
               <div className="row-wrap">
                 <button type="button" className={`chip${brush === "erase" ? " is-active" : ""}`} onClick={() => setBrush(brush === "erase" ? null : "erase")}>
-                  Erase brush
+                  {t("Erase brush")}
                 </button>
                 <button type="button" className={`chip${brush === "restore" ? " is-active" : ""}`} onClick={() => setBrush(brush === "restore" ? null : "restore")}>
-                  Restore brush
+                  {t("Restore brush")}
                 </button>
               </div>
               {brush ? (
                 <label className="small">
-                  Brush size {brushSize}
+                  {t("Brush size")} {brushSize}
                   <input type="range" min={4} max={60} value={brushSize} onChange={(e) => setBrushSize(Number(e.target.value))} />
                 </label>
               ) : null}
-              <p className="muted small">Background removal only changes what's transparent, never the colors. The original is always kept, so you can redo or restore it anytime.</p>
+              <p className="muted small">{t("Background removal only changes what's transparent, never the colors. The original is always kept, so you can redo or restore it anytime.")}</p>
             </>
           )}
         </>

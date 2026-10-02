@@ -1,6 +1,8 @@
 import { Link, useLocation } from "@remix-run/react";
 import type { ReactNode } from "react";
+import { t } from "../i18n";
 import { Icon, type IconName } from "./Icon";
+import { LanguageButton } from "../i18n/LangProvider";
 
 export function AppHeader({
   title,
@@ -28,13 +30,13 @@ export function AppHeader({
 export function BackButton({ to, onClick }: { to?: string; onClick?: () => void }) {
   if (to) {
     return (
-      <Link to={to} className="icon-btn" aria-label="Back">
+      <Link to={to} className="icon-btn" aria-label={t("Back")}>
         <Icon name="back" />
       </Link>
     );
   }
   return (
-    <button type="button" className="icon-btn" aria-label="Back" onClick={onClick}>
+    <button type="button" className="icon-btn" aria-label={t("Back")} onClick={onClick}>
       <Icon name="back" />
     </button>
   );
@@ -42,22 +44,25 @@ export function BackButton({ to, onClick }: { to?: string; onClick?: () => void 
 
 export function SettingsLink() {
   return (
-    <Link to="/settings" className="icon-btn" aria-label="Settings">
-      <Icon name="gear" />
-    </Link>
+    <>
+      <LanguageButton />
+      <Link to="/settings" className="icon-btn" aria-label={t("Settings")}>
+        <Icon name="settings" />
+      </Link>
+    </>
   );
 }
 
 const NAV: { to: string; label: string; icon: IconName }[] = [
-  { to: "/diary", label: "Diary", icon: "book" },
-  { to: "/create", label: "Create", icon: "brush" },
-  { to: "/assets", label: "Library", icon: "sticker" },
+  { to: "/diary", get label() { return t("Diary"); }, icon: "book" },
+  { to: "/create", get label() { return t("Create"); }, icon: "brush" },
+  { to: "/assets", get label() { return t("Library"); }, icon: "sticker" },
 ];
 
 export function BottomNav() {
   const loc = useLocation();
   return (
-    <nav className="bottom-nav" aria-label="Main navigation">
+    <nav className="bottom-nav" aria-label={t("Main navigation")}>
       {NAV.map((n) => {
         const active = loc.pathname.startsWith(n.to);
         return (
@@ -68,7 +73,7 @@ export function BottomNav() {
             aria-current={active ? "page" : undefined}
           >
             <Icon name={n.icon} />
-            <span>{n.label}</span>
+            <span>{t(n.label)}</span>
           </Link>
         );
       })}

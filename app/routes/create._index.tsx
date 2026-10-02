@@ -13,6 +13,7 @@ import { AppHeader, EmptyState, Screen, SettingsLink } from "~/packages/shell/La
 import { Menu } from "~/packages/shell/Sheet";
 import { useToast } from "~/packages/shell/toast";
 import "~/packages/create/create.css";
+import { t } from "~/packages/i18n";
 
 export default function CreateHome() {
   const navigate = useNavigate();
@@ -33,7 +34,7 @@ export default function CreateHome() {
       const { art, layerId } = await createArtworkFromFile(file);
       navigate(`/create/${art.id}?removebg=${layerId}`);
     } catch (err) {
-      toast(err instanceof ImportError ? err.message : describeError(err), "error");
+      toast(err instanceof ImportError ? t(err.message) : describeError(err), "error");
     } finally {
       setImporting(false);
     }
@@ -47,13 +48,13 @@ export default function CreateHome() {
             <div className="create-tile-thumb">
               <ArtThumb art={a} />
             </div>
-            <div style={{ fontWeight: 600, marginTop: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</div>
+            <div style={{ fontWeight: 600, marginTop: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name === "Untitled artwork" ? t("Untitled artwork") : a.name}</div>
             <div className="muted small">{formatTimestamp(a.updatedAt)}</div>
           </Link>
           <button
             type="button"
             className="icon-btn"
-            aria-label="More"
+            aria-label={t("More")}
             style={{ position: "absolute", right: 4, bottom: 4 }}
             onClick={() => setMenu(a)}
           >
@@ -65,32 +66,32 @@ export default function CreateHome() {
   );
 
   return (
-    <Screen nav header={<AppHeader title="Create" right={<SettingsLink />} />} bodyStyle={{ padding: 16 }}>
+    <Screen nav header={<AppHeader title={t("Create")} right={<SettingsLink />} />} bodyStyle={{ padding: 16 }}>
       <div className="row" style={{ gap: 10, marginBottom: 20 }}>
         <Link to="/create/new" className="btn btn-primary" style={{ flex: 1 }}>
-          <Icon name="plus" size={18} /> Blank canvas
+          <Icon name="plus" size={18} /> {t("Blank canvas")}
         </Link>
         <button type="button" className="btn" style={{ flex: 1 }} disabled={importing} onClick={() => void importImage()}>
-          <Icon name="image" size={18} /> {importing ? "Importing…" : "Import image"}
+          <Icon name="image" size={18} /> {importing ? t("Importing…") : t("Import image")}
         </button>
       </div>
       <p className="muted small" style={{ marginTop: -10, marginBottom: 16 }}>
-        Sketch → Paper texture → Print → Sticker. When it's done, add it to your diary or export a PNG.
+        {t("Sketch → Paper texture → Print → Sticker. When it's done, add it to your diary or export a PNG.")}
       </p>
 
       {arts.loading && !arts.data ? null : all.length === 0 ? (
-        <EmptyState title="No artwork yet" hint="Start drawing on a blank canvas, or import a photo to turn into a sticker." />
+        <EmptyState title={t("No artwork yet")} hint={t("Start drawing on a blank canvas, or import a photo to turn into a sticker.")} />
       ) : (
         <>
           {drafts.length ? (
             <>
-              <div className="section-title">Drafts</div>
+              <div className="section-title">{t("Drafts")}</div>
               {grid(drafts)}
             </>
           ) : null}
           {done.length ? (
             <>
-              <div className="section-title">Recently finished</div>
+              <div className="section-title">{t("Recently finished")}</div>
               {grid(done)}
             </>
           ) : null}
@@ -104,20 +105,20 @@ export default function CreateHome() {
         items={
           menu
             ? [
-                { label: "Continue editing", onSelect: () => navigate(`/create/${menu.id}`) },
+                { get label() { return t("Continue editing"); }, onSelect: () => navigate(`/create/${menu.id}`) },
                 {
-                  label: "Duplicate",
+                  get label() { return t("Duplicate"); },
                   onSelect: () =>
                     void duplicateArtwork(menu.id)
-                      .then(() => toast("Duplicated", "success"))
+                      .then(() => toast(t("Duplicated"), "success"))
                       .catch((err) => toast(describeError(err), "error")),
                 },
                 {
-                  label: "Move to trash",
+                  get label() { return t("Move to trash"); },
                   danger: true,
                   onSelect: () =>
                     void trashArtwork(menu.id)
-                      .then(() => toast("Moved to trash. You can restore it in Settings."))
+                      .then(() => toast(t("Moved to trash. You can restore it in Settings.")))
                       .catch((err) => toast(describeError(err), "error")),
                 },
               ]

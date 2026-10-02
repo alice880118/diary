@@ -1,3 +1,4 @@
+import { tn } from "../i18n";
 import { monthName } from "../db/id";
 import type { MonthlyOverview, Page, StickerObject, StickerSnap } from "../db/types";
 
@@ -52,7 +53,7 @@ export function computeMonthPreview(
   const autoText = latest ? pageSummary(latest) : "";
   const [, m] = ym.split("-").map(Number);
   const fallback = monthPages.length
-    ? `${monthName(m, true)} · ${monthPages.length} ${monthPages.length === 1 ? "page" : "pages"}`
+    ? `${monthName(m, true)} · ${tn(monthPages.length, "{n} page", "{n} pages")}`
     : "";
   const manualText = overview?.highlight?.trim() || "";
   const manualSticker = overview?.sticker ?? null;

@@ -1,3 +1,4 @@
+import { isZh } from "../i18n";
 const ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz";
 
 /** Random prefixed ID; works in insecure contexts where randomUUID is absent. */
@@ -60,39 +61,44 @@ export const MONTHS = [
   "December",
 ];
 
-/** Full weekday name, e.g. "Wednesday". */
+const WEEKDAYS_ZH = ["日", "一", "二", "三", "四", "五", "六"];
+
+/** Full weekday name, e.g. "Wednesday" / "星期三". */
 export function weekdayOf(date: string): string {
   const [y, m, d] = date.split("-").map(Number);
-  return WEEKDAYS[new Date(y, m - 1, d).getDay()] ?? "";
+  const i = new Date(y, m - 1, d).getDay();
+  return isZh() ? `星期${WEEKDAYS_ZH[i]}` : WEEKDAYS[i] ?? "";
 }
 
-/** 1-based month to full name; "Mar" style when short. */
+/** 1-based month to full name; "Mar" style when short ("3月" in Chinese). */
 export function monthName(m: number, short = false): string {
+  if (isZh()) return `${m}月`;
   const n = MONTHS[m - 1] ?? "";
   return short ? n.slice(0, 3) : n;
 }
 
-/** "YYYY-MM" to "September 2026". */
+/** "YYYY-MM" to "September 2026" / "2026年9月". */
 export function formatYm(ym: string): string {
   const [y, m] = ym.split("-").map(Number);
-  return `${monthName(m)} ${y}`;
+  return isZh() ? `${y}年${m}月` : `${monthName(m)} ${y}`;
 }
 
-/** "YYYY-MM-DD" to "Wed, Sep 30, 2026". */
+/** "YYYY-MM-DD" to "Wed, Sep 30, 2026" / "2026年9月30日（三）". */
 export function formatDate(date: string): string {
   const [y, m, d] = date.split("-").map(Number);
+  if (isZh()) return `${y}年${m}月${d}日（${WEEKDAYS_ZH[new Date(y, m - 1, d).getDay()]}）`;
   return `${weekdayOf(date).slice(0, 3)}, ${monthName(m, true)} ${d}, ${y}`;
 }
 
-/** "YYYY-MM-DD" to "Sep 30". */
+/** "YYYY-MM-DD" to "Sep 30" / "9月30日". */
 export function formatDateShort(date: string): string {
   const [, m, d] = date.split("-").map(Number);
-  return `${monthName(m, true)} ${d}`;
+  return isZh() ? `${m}月${d}日` : `${monthName(m, true)} ${d}`;
 }
 
 /** Epoch ms to "Sep 30, 2026, 10:27 PM". */
 export function formatTimestamp(t: number, withTime = true): string {
-  return new Date(t).toLocaleString("en-US", {
+  return new Date(t).toLocaleString(isZh() ? "zh-TW" : "en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",

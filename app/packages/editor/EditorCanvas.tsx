@@ -13,6 +13,7 @@ import { sortByZ } from "../page/PageSurface";
 import type { PeelState } from "../sticker/geometry";
 import { hitObjects, isOffPage, toLocal, rotateVec } from "./geometry";
 import "../page/page.css";
+import { t } from "../i18n";
 
 export type EditMode = "layout" | "ink";
 
@@ -685,12 +686,12 @@ export function EditorCanvas(props: Props) {
               }}
             >
               {sel.locked ? (
-                <div className="sel-lock" style={{ fontSize: 14 / s, top: -26 / s }}>🔒 Locked</div>
+                <div className="sel-lock" style={{ fontSize: 14 / s, top: -26 / s }}>🔒 {t("Locked")}</div>
               ) : (
                 <div
                   data-handle="transform"
                   className="sel-handle"
-                  aria-label="Resize and rotate"
+                  aria-label={t("Resize and rotate")}
                   style={{
                     width: handleSize,
                     height: handleSize,
@@ -700,7 +701,7 @@ export function EditorCanvas(props: Props) {
                   }}
                 />
               )}
-              {isOffPage(sel) ? <div className="sel-lock" style={{ fontSize: 14 / s, top: -26 / s }}>Off page</div> : null}
+              {isOffPage(sel) ? <div className="sel-lock" style={{ fontSize: 14 / s, top: -26 / s }}>{t("Off page")}</div> : null}
             </div>
           ) : null}
           {inkSelBox ? (
@@ -736,11 +737,11 @@ export function EditorCanvas(props: Props) {
         </div>
       </div>
       {inkSelStroke ? (
-        <div className="float-group ink-sel-actions" role="toolbar" aria-label="Selection" onPointerDown={(e) => e.stopPropagation()}>
+        <div className="float-group ink-sel-actions" role="toolbar" aria-label={t("Selection")} onPointerDown={(e) => e.stopPropagation()}>
           <button
             type="button"
             className="icon-btn"
-            aria-label="Duplicate"
+            aria-label={t("Duplicate")}
             onClick={() => {
               const copy = duplicateStroke(inkSelStroke);
               onCommit((pg) => ({ ...pg, ink: [...pg.ink, copy] }));
@@ -752,7 +753,7 @@ export function EditorCanvas(props: Props) {
           <button
             type="button"
             className="icon-btn"
-            aria-label="Delete"
+            aria-label={t("Delete")}
             style={{ color: "var(--destructive)" }}
             onClick={() => {
               const id = inkSelStroke.id;

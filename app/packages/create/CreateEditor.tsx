@@ -76,14 +76,15 @@ import {
 } from "./StudioSteps";
 import { textureById } from "../textures/catalog";
 import "./create.css";
+import { t } from "../i18n";
 
 type Step = "draw" | "paper" | "print" | "sticker";
 
 const STEPS: { id: Step; label: string }[] = [
-  { id: "draw", label: "Sketch" },
-  { id: "paper", label: "Paper" },
-  { id: "print", label: "Print" },
-  { id: "sticker", label: "Sticker" },
+  { id: "draw", get label() { return t("Sketch"); } },
+  { id: "paper", get label() { return t("Paper"); } },
+  { id: "print", get label() { return t("Print"); } },
+  { id: "sticker", get label() { return t("Sticker"); } },
 ];
 
 const STATUS: Record<SaveStatus, string> = {
@@ -188,7 +189,7 @@ export function CreateEditor({
         rtRef.current = r;
         setRt(r);
         setRtTick((t) => t + 1);
-        if (r.missing.size) toast("Some assets are missing and were replaced with blanks", "error");
+        if (r.missing.size) toast(t("Some assets are missing and were replaced with blanks"), "error");
       })
       .catch((err) => toast(describeError(err), "error"));
     return () => {
@@ -299,7 +300,7 @@ export function CreateEditor({
         });
         setBuildError(null);
       } catch (err) {
-        if (alive) setBuildError(err instanceof Error ? err.message : String(err));
+        if (alive) setBuildError(describeError(err));
       }
     }, 220);
     return () => {
@@ -331,7 +332,7 @@ export function CreateEditor({
       setActiveLayer(l.id);
       setBgLayer(l.id);
     } catch (err) {
-      toast(err instanceof ImportError ? err.message : describeError(err), "error");
+      toast(err instanceof ImportError ? t(err.message) : describeError(err), "error");
     }
   };
 
@@ -416,7 +417,7 @@ export function CreateEditor({
     ctx.fillRect(0, 0, ART_W, ART_H);
     ctx.globalCompositeOperation = "source-over";
     void commitMask(ink);
-    toast("Area created from layer");
+    toast(t("Area created from layer"));
   };
 
   const clearMask = (inkId: string) => {
@@ -445,7 +446,7 @@ export function CreateEditor({
           maxY = Math.max(maxY, y);
         }
     if (maxX < 0) {
-      toast("The canvas is still empty", "error");
+      toast(t("The canvas is still empty"), "error");
       return;
     }
     const m = 24;
@@ -481,7 +482,7 @@ export function CreateEditor({
       return;
     }
     if (art.print.layers.length >= MAX_PRINT_LAYERS) {
-      toast(`You can use up to ${MAX_PRINT_LAYERS} ink colors. Pick one you already used.`, "error");
+      toast(t("You can use up to {MAX_PRINT_LAYERS} ink colors. Pick one you already used.", { MAX_PRINT_LAYERS }), "error");
       return;
     }
     const base = newPrintLayer(art.print.layers.length);
@@ -730,14 +731,14 @@ export function CreateEditor({
     <div className="screen">
       <header className="app-header is-studio">
         <div className="app-header-side">
-          <button type="button" className="icon-btn" aria-label="Back" onClick={() => void leave()}>
+          <button type="button" className="icon-btn" aria-label={t("Back")} onClick={() => void leave()}>
             <Icon name="back" />
           </button>
         </div>
         <div className="app-header-title">
           <div className="app-header-main studio-title">
-            <span className="studio-name">{art.name}</span>
-            <span className={`save-dot is-${doc.status}`} role="status" aria-label={STATUS[doc.status]} title={STATUS[doc.status]} />
+            <span className="studio-name">{art.name === "Untitled artwork" ? t("Untitled artwork") : art.name}</span>
+            <span className={`save-dot is-${doc.status}`} role="status" aria-label={t(STATUS[doc.status])} title={t(STATUS[doc.status])} />
           </div>
           <StepPill steps={STEPS.map((s) => ({ ...s, edited: edited[s.id] }))} current={step} onPick={(id) => goStep(id as Step)} />
         </div>
@@ -748,16 +749,16 @@ export function CreateEditor({
             style={{ marginRight: 6 }}
             onClick={() => (step === "sticker" ? setFinishOpen(true) : goStep(STEPS[stepIdx + 1].id))}
           >
-            {step === "sticker" ? "Finish" : "Next"}
+            {step === "sticker" ? t("Finish") : t("Next")}
           </button>
         </div>
       </header>
       <div className="create-body">
         {doc.status === "error" ? (
           <div className="save-error-bar" role="alert" style={{ margin: "8px 12px 0" }}>
-            <span>Save failed: {doc.error}</span>
+            <span>{t("Save failed: {error}", { error: doc.error ?? "" })}</span>
             <button type="button" className="btn btn-sm" onClick={() => void doc.retry()}>
-              Retry
+              {t("Retry")}
             </button>
           </div>
         ) : null}
@@ -776,7 +777,7 @@ export function CreateEditor({
               />
             ) : (
               <div className="muted" style={{ width: canvasSize, height: canvasSize, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", padding: 20 }}>
-                {buildError ?? "Generating preview…"}
+                {buildError ?? t("Generating preview…")}
               </div>
             )
           ) : (
@@ -836,10 +837,10 @@ export function CreateEditor({
             />
           )}
           <div className="float-group float-tl">
-            <button type="button" className="icon-btn" aria-label="Undo" disabled={!doc.canUndo} onClick={doc.undo}>
+            <button type="button" className="icon-btn" aria-label={t("Undo")} disabled={!doc.canUndo} onClick={doc.undo}>
               <Icon name="undo" />
             </button>
-            <button type="button" className="icon-btn" aria-label="Redo" disabled={!doc.canRedo} onClick={doc.redo}>
+            <button type="button" className="icon-btn" aria-label={t("Redo")} disabled={!doc.canRedo} onClick={doc.redo}>
               <Icon name="redo" />
             </button>
           </div>
@@ -850,11 +851,11 @@ export function CreateEditor({
             </button>
           ) : null}
           {step === "draw" && selStroke ? (
-            <div className="float-group float-tc" role="toolbar" aria-label="Selection">
-              <button type="button" className="icon-btn" aria-label="Duplicate" onClick={duplicateSelection}>
+            <div className="float-group float-tc" role="toolbar" aria-label={t("Selection")}>
+              <button type="button" className="icon-btn" aria-label={t("Duplicate")} onClick={duplicateSelection}>
                 <Icon name="copy" />
               </button>
-              <button type="button" className="icon-btn" aria-label="Delete" style={{ color: "var(--destructive)" }} onClick={deleteSelection}>
+              <button type="button" className="icon-btn" aria-label={t("Delete")} style={{ color: "var(--destructive)" }} onClick={deleteSelection}>
                 <Icon name="trash" />
               </button>
             </div>
@@ -862,7 +863,7 @@ export function CreateEditor({
           {step === "paper" ? (
             <button type="button" className="canvas-chip" onClick={() => setPaperOpen(true)}>
               <Icon name="sheetPaper" size={15} />
-              {textureById(art.texture.id).name}
+              {t(textureById(art.texture.id).name)}
             </button>
           ) : null}
           {step === "print" ? (
@@ -876,20 +877,20 @@ export function CreateEditor({
                 ) : (
                   <>
                     <Icon name="plus" size={15} />
-                    Add ink
+                    {t("Add ink")}
                   </>
                 )}
               </button>
               <div className="float-tr-row">
               <label className="float-group paint-switch">
-                <span>Paint</span>
-                <input type="checkbox" role="switch" className="toggle" aria-label="Paint mode" checked={paintMode} onChange={(e) => setPaintMode(e.target.checked)} />
+                <span>{t("Paint")}</span>
+                <input type="checkbox" role="switch" className="toggle" aria-label={t("Paint mode")} checked={paintMode} onChange={(e) => setPaintMode(e.target.checked)} />
               </label>
               <button
                 ref={viewRef}
                 type="button"
                 className={`float-group view-btn${printView !== "composite" ? " is-on" : ""}`}
-                aria-label="View"
+                aria-label={t("View")}
                 aria-haspopup="menu"
                 onClick={() => setViewOpen((v) => !v)}
               >
@@ -914,7 +915,7 @@ export function CreateEditor({
                   "separator" as const,
                   {
                     icon: "pen2",
-                    label: "Sketch guide",
+                    get label() { return t("Sketch guide"); },
                     trail: guide ? <Icon name="check" size={18} /> : undefined,
                     onSelect: () => setGuide((g) => !g),
                   },
@@ -926,7 +927,7 @@ export function CreateEditor({
             <button
               type="button"
               className={`float-group float-tr view-btn${shine ? " is-on" : ""}`}
-              aria-label="Shine preview"
+              aria-label={t("Shine preview")}
               aria-pressed={shine}
               onClick={() => setShine((v) => !v)}
             >
@@ -940,8 +941,8 @@ export function CreateEditor({
             <StudioBar>
               {imgLayer ? (
                 <div className="studio-tools">
-                  <LabeledTool icon="wand" label={imgLayer.maskAssetId ? "Background" : "Remove BG"} onClick={() => setBgLayer(imgLayer.id)} />
-                  <LabeledTool icon="sliders" label="Adjust" active={pop === "image"} btnRef={adjustRef} onClick={() => setPop(pop === "image" ? null : "image")} />
+                  <LabeledTool icon="wand" label={imgLayer.maskAssetId ? t("Background") : t("Remove BG")} onClick={() => setBgLayer(imgLayer.id)} />
+                  <LabeledTool icon="sliders" label={t("Adjust")} active={pop === "image"} btnRef={adjustRef} onClick={() => setPop(pop === "image" ? null : "image")} />
                 </div>
               ) : (
                 <DrawBar
@@ -958,14 +959,14 @@ export function CreateEditor({
                   selection={selStroke}
                   onSelectionStyle={styleSelection}
                   popBottom={88}
-                  right={<ToolButton icon="layers" label="Layers" count={art.layers.length} onClick={() => { setPop(null); setLayersOpen(true); }} />}
+                  right={<ToolButton icon="layers" label={t("Layers")} count={art.layers.length} onClick={() => { setPop(null); setLayersOpen(true); }} />}
                 />
               )}
               {imgLayer ? (
                 <>
                   <div className="studio-sep" />
                   <div className="studio-right">
-                    <ToolButton icon="layers" label="Layers" count={art.layers.length} onClick={() => { setPop(null); setLayersOpen(true); }} />
+                    <ToolButton icon="layers" label={t("Layers")} count={art.layers.length} onClick={() => { setPop(null); setLayersOpen(true); }} />
                   </div>
                 </>
               ) : null}
@@ -1011,21 +1012,21 @@ export function CreateEditor({
           <>
             <StudioBar>
               <div className="studio-tools is-tight">
-                {MASK_TOOLS.map((t) => (
+                {MASK_TOOLS.map((mt) => (
                   <ToolButton
-                    key={t.id}
-                    icon={t.icon}
-                    label={t.label}
-                    active={maskTool === t.id}
+                    key={mt.id}
+                    icon={mt.icon}
+                    label={t(mt.label)}
+                    active={maskTool === mt.id}
                     disabled={!pLayer || !art.print.enabled}
                     btnRef={(el) => {
-                      toolRefs.current[`m-${t.id}`] = el;
+                      toolRefs.current[`m-${mt.id}`] = el;
                     }}
                     onClick={() => {
-                      if (t.id === maskTool && (t.id === "brush" || t.id === "erase")) {
+                      if (mt.id === maskTool && (mt.id === "brush" || mt.id === "erase")) {
                         setPop(pop === "maskSize" ? null : "maskSize");
                       } else {
-                        setMaskTool(t.id);
+                        setMaskTool(mt.id);
                         setPop(null);
                       }
                     }}
@@ -1038,8 +1039,8 @@ export function CreateEditor({
                   ref={maskSizeRef}
                   type="button"
                   className="st-tool"
-                  aria-label={`Brush size ${brushSize}`}
-                  title="Brush size"
+                  aria-label={t("Brush size {brushSize}", { brushSize })}
+                  title={t("Brush size")}
                   disabled={!pLayer || !art.print.enabled}
                   onClick={() => setPop(pop === "maskSize" ? null : "maskSize")}
                 >
@@ -1053,8 +1054,8 @@ export function CreateEditor({
                   btnRef={inkColorRef}
                   onClick={() => (pLayer || paintMode) && setPop(pop === "inkColor" ? null : "inkColor")}
                 />
-                <ToolButton icon="layers" label="Inks" count={art.print.layers.length} onClick={() => { setPop(null); setInksOpen(true); }} />
-                <ToolButton icon="sliders" label="Print settings" disabled={!pLayer} onClick={() => { setPop(null); setParamsOpen(true); }} />
+                <ToolButton icon="layers" label={t("Inks")} count={art.print.layers.length} onClick={() => { setPop(null); setInksOpen(true); }} />
+                <ToolButton icon="sliders" label={t("Print settings")} disabled={!pLayer} onClick={() => { setPop(null); setParamsOpen(true); }} />
               </div>
             </StudioBar>
             <MaskSizePopover
@@ -1080,7 +1081,7 @@ export function CreateEditor({
               <div className="studio-tools is-spread">
                 <LabeledTool
                   icon="material"
-                  label="Material"
+                  label={t("Material")}
                   active={pop === "material"}
                   btnRef={(el) => {
                     stickerRefs.current.material = el;
@@ -1089,7 +1090,7 @@ export function CreateEditor({
                 />
                 <LabeledTool
                   icon="scissors2"
-                  label="Cut"
+                  label={t("Cut")}
                   active={pop === "cut"}
                   btnRef={(el) => {
                     stickerRefs.current.cut = el;
@@ -1098,7 +1099,7 @@ export function CreateEditor({
                 />
                 <LabeledTool
                   icon="sheetPaper"
-                  label={art.sticker.keepPaper ? "Paper" : "No paper"}
+                  label={art.sticker.keepPaper ? t("Paper") : t("No paper")}
                   active={art.sticker.keepPaper}
                   onClick={() => setSticker({ ...art.sticker, keepPaper: !art.sticker.keepPaper })}
                 />
@@ -1234,9 +1235,9 @@ export function CreateEditor({
             const r = await finishSticker(doc.latest.current, rt, { name, category });
             commit(r.artwork, false);
             setResult({ sticker: r.sticker, version: r.version });
-            toast("Sticker saved", "success");
+            toast(t("Sticker saved"), "success");
           } catch (err) {
-            toast(`Save failed: ${describeError(err)}`, "error");
+            toast(t("Save failed: {x}", { x: describeError(err) }), "error");
           } finally {
             setFinishing(false);
           }

@@ -27,14 +27,15 @@ import { NotePanel } from "./NotePanel";
 import { TextPanel } from "./TextPanel";
 import { useEditorDoc, type SaveStatus } from "./useEditorDoc";
 import "./editor.css";
+import { t } from "../i18n";
 
 type Panel = null | "text" | "sticker" | "note" | "link" | "style" | "layers" | "more" | "date";
 
 const STATUS: Record<SaveStatus, { label: string; color: string }> = {
-  saved: { label: "Saved", color: "var(--success)" },
-  pending: { label: "Unsaved changes", color: "var(--warning)" },
-  saving: { label: "Saving…", color: "var(--warning)" },
-  error: { label: "Save failed", color: "var(--destructive)" },
+  saved: { get label() { return t("Saved"); }, color: "var(--success)" },
+  pending: { get label() { return t("Unsaved changes"); }, color: "var(--warning)" },
+  saving: { get label() { return t("Saving…"); }, color: "var(--warning)" },
+  error: { get label() { return t("Save failed"); }, color: "var(--destructive)" },
 };
 
 function jitter() {
@@ -82,7 +83,7 @@ export function PageEditor({
       const ok = await doc.flush();
       if (!ok) {
         pendingNav.current = to;
-        setLeaveError(doc.error ?? "Couldn't write to the local database");
+        setLeaveError(doc.error ?? t("Couldn't write to the local database"));
         return;
       }
       navigate(to, { replace });
@@ -150,10 +151,10 @@ export function PageEditor({
       .then((s) => {
         if (s) {
           addSticker(s);
-          toast("Sticker added", "success");
+          toast(t("Sticker added"), "success");
         }
       })
-      .catch(() => toast("Couldn't find the new sticker", "error"));
+      .catch(() => toast(t("Couldn't find the new sticker"), "error"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -223,7 +224,7 @@ export function PageEditor({
         assetId: asset.id,
       });
     } catch (err) {
-      toast(err instanceof ImportError ? err.message : describeError(err), "error");
+      toast(err instanceof ImportError ? t(err.message) : describeError(err), "error");
     }
   };
 
@@ -329,7 +330,7 @@ export function PageEditor({
     if (!snap) return;
     const k = Math.max(o.w, o.h) / Math.max(snap.w, snap.h);
     updateObject(o.id, { snap, w: snap.w * k, h: snap.h * k } as Partial<PageObject>);
-    toast(`Updated to version ${snap.version}`, "success");
+    toast(t("Updated to version {version}", { version: snap.version }), "success");
   };
 
   /* ---------- render helpers ---------- */
@@ -354,7 +355,7 @@ export function PageEditor({
       onClick={onClick}
     >
       <Icon name={icon} size={20} />
-      <span>{label}</span>
+      <span>{t(label)}</span>
     </button>
   );
 
@@ -379,14 +380,14 @@ export function PageEditor({
         ? tool("edit", "Edit", () => openEditor(o), { disabled: o.locked })
         : null,
       o.type === "link" ? tool("out", "Open", () => openExternal(o.url)) : null,
-      newerVersion ? tool("refresh", `Update v${newerVersion}`, () => updateSnapVersion(o)) : null,
+      newerVersion ? tool("refresh", t("Update v{newerVersion}", { newerVersion }), () => updateSnapVersion(o)) : null,
       isOffPage(o) ? tool("zoomIn", "Move back", () => updateObject(o.id, bringIntoPage(o))) : null,
       tool("copy", "Duplicate", () => {
         const c = duplicateObject(o, maxZ(page.objects) + 1);
         commit((p) => ({ ...p, objects: [...p.objects, c] }));
         setSelectedId(c.id);
       }),
-      tool(o.locked ? "unlock" : "lock", o.locked ? "Unlock" : "Lock", () => updateObject(o.id, { locked: !o.locked })),
+      tool(o.locked ? "unlock" : "lock", o.locked ? t("Unlock") : t("Lock"), () => updateObject(o.id, { locked: !o.locked })),
       tool("up", "Forward", () => commit((p) => ({ ...p, objects: shiftZ(p.objects, o.id, 1) }))),
       tool("down", "Backward", () => commit((p) => ({ ...p, objects: shiftZ(p.objects, o.id, -1) }))),
       tool("layers", "Layers", () => setPanel("layers")),
@@ -418,7 +419,7 @@ export function PageEditor({
     <div className="editor-screen">
       <AppHeader
         left={
-          <button type="button" className="icon-btn" aria-label="Back" onClick={() => void leave(backTo)}>
+          <button type="button" className="icon-btn" aria-label={t("Back")} onClick={() => void leave(backTo)}>
             <Icon name="back" />
           </button>
         }
@@ -434,20 +435,20 @@ export function PageEditor({
         subtitle={
           <span className="editor-status">
             <span className="dot" style={{ background: status.color }} />
-            {status.label} · Page {index + 1} of {pages.length}
+            {t(status.label)} · {t("Page {n} of {total}", { n: index + 1, total: pages.length })}
           </span>
         }
         right={
-          <button type="button" className="icon-btn" aria-label="More options" onClick={() => setPanel("more")}>
+          <button type="button" className="icon-btn" aria-label={t("More options")} onClick={() => setPanel("more")}>
             <Icon name="more" />
           </button>
         }
       />
       {doc.status === "error" ? (
         <div className="save-error-bar" role="alert">
-          <span>Save failed: {doc.error}. Your content is still on screen.</span>
+          <span>{t("Save failed: {error}. Your content is still on screen.", { error: doc.error ?? "" })}</span>
           <button type="button" className="btn btn-sm" onClick={() => void doc.retry()}>
-            Retry
+            {t("Retry")}
           </button>
         </div>
       ) : null}
@@ -473,21 +474,21 @@ export function PageEditor({
       <div className="editor-bottom">
         <div className="editor-strip">
           <div className="row" style={{ gap: 0 }}>
-            <button type="button" className="icon-btn" aria-label="Undo" disabled={!doc.canUndo} onClick={doc.undo}>
+            <button type="button" className="icon-btn" aria-label={t("Undo")} disabled={!doc.canUndo} onClick={doc.undo}>
               <Icon name="undo" />
             </button>
-            <button type="button" className="icon-btn" aria-label="Redo" disabled={!doc.canRedo} onClick={doc.redo}>
+            <button type="button" className="icon-btn" aria-label={t("Redo")} disabled={!doc.canRedo} onClick={doc.redo}>
               <Icon name="redo" />
             </button>
           </div>
           <span className="muted small">
-            {mode === "ink" ? "Handwriting · Pinch to zoom" : selected ? (selected.locked ? "Locked · Unlock in Layers" : "Drag to move · Corner to resize") : "Layout · Pinch to zoom"}
+            {mode === "ink" ? t("Handwriting · Pinch to zoom") : selected ? (selected.locked ? t("Locked · Unlock in Layers") : t("Drag to move · Corner to resize")) : t("Layout · Pinch to zoom")}
           </span>
           <div className="row" style={{ gap: 0 }}>
             <button
               type="button"
               className="icon-btn"
-              aria-label="Previous page"
+              aria-label={t("Previous page")}
               disabled={index <= 0}
               onClick={() => void leave(`/page/${pages[index - 1]?.id}/edit`, true)}
             >
@@ -496,7 +497,7 @@ export function PageEditor({
             <button
               type="button"
               className="icon-btn"
-              aria-label="Next page"
+              aria-label={t("Next page")}
               disabled={index >= pages.length - 1}
               onClick={() => void leave(`/page/${pages[index + 1]?.id}/edit`, true)}
             >
@@ -525,7 +526,7 @@ export function PageEditor({
                   setInkSel(null);
                   setMode("layout");
                 }}>
-                  Done
+                  {t("Done")}
                 </button>
               }
             />
@@ -555,7 +556,7 @@ export function PageEditor({
         }}
       />
 
-      <Sheet open={panel === "sticker"} title="Stickers" onClose={() => setPanel(null)} tall>
+      <Sheet open={panel === "sticker"} title={t("Stickers")} onClose={() => setPanel(null)} tall>
         <StickerPicker
           onPick={(s) => {
             addSticker(s);
@@ -596,9 +597,9 @@ export function PageEditor({
         onSave={saveLink}
       />
 
-      <Sheet open={panel === "style"} title="Page style" onClose={() => setPanel(null)}>
+      <Sheet open={panel === "style"} title={t("Page style")} onClose={() => setPanel(null)}>
         <PageStylePicker value={page.style} date={page.date} onChange={(s) => commit((p) => ({ ...p, style: s }))} />
-        <p className="muted small">Changing the style only affects the background. Your content won't move or be removed.</p>
+        <p className="muted small">{t("Changing the style only affects the background. Your content won't move or be removed.")}</p>
       </Sheet>
 
       <LayersPanel
@@ -623,50 +624,50 @@ export function PageEditor({
 
       <DateSheet
         open={panel === "date"}
-        title="Change date"
+        title={t("Change date")}
         initial={page.date}
-        confirmText="Apply"
+        confirmText={t("Apply")}
         onClose={() => setPanel(null)}
         onConfirm={(d) => {
           commit((p) => ({ ...p, date: d }));
           setPanel(null);
-          toast("Date changed. The month index will update too.");
+          toast(t("Date changed. The month index will update too."));
         }}
       />
 
       <Menu
         open={panel === "more"}
-        title="Page options"
+        title={t("Page options")}
         onClose={() => setPanel(null)}
         items={[
-          { label: "Reading mode", onSelect: () => void leave(`/page/${page.id}`, true) },
-          { label: "Page style", onSelect: () => setPanel("style") },
-          { label: "Layers", onSelect: () => setPanel("layers") },
-          { label: "Change date", onSelect: () => setPanel("date") },
+          { get label() { return t("Reading mode"); }, onSelect: () => void leave(`/page/${page.id}`, true) },
+          { get label() { return t("Page style"); }, onSelect: () => setPanel("style") },
+          { get label() { return t("Layers"); }, onSelect: () => setPanel("layers") },
+          { get label() { return t("Change date"); }, onSelect: () => setPanel("date") },
           {
-            label: "Duplicate page",
+            get label() { return t("Duplicate page"); },
             onSelect: async () => {
               const ok = await doc.flush();
               if (!ok) return;
               try {
                 const copy = await duplicatePage(page.id);
-                toast("Duplicated. Opening the copy…");
+                toast(t("Duplicated. Opening the copy…"));
                 navigate(`/page/${copy.id}/edit`, { replace: true });
               } catch (err) {
                 toast(describeError(err), "error");
               }
             },
           },
-          { label: "Delete page", danger: true, onSelect: () => setConfirmDelete(true) },
+          { get label() { return t("Delete page"); }, danger: true, onSelect: () => setConfirmDelete(true) },
         ]}
       />
 
       <ConfirmSheet
         open={confirmDelete}
-        title="Delete page"
+        title={t("Delete page")}
         danger
-        confirmText="Move to trash"
-        message="The page will be moved to the trash. You can restore it from Settings → Trash."
+        confirmText={t("Move to trash")}
+        message={t("The page will be moved to the trash. You can restore it from Settings → Trash.")}
         onClose={() => setConfirmDelete(false)}
         onConfirm={async () => {
           setConfirmDelete(false);
@@ -682,7 +683,7 @@ export function PageEditor({
 
       <Sheet
         open={leaveError !== null}
-        title="Not saved"
+        title={t("Not saved")}
         onClose={() => setLeaveError(null)}
         footer={
           <div className="row-end">
@@ -695,7 +696,7 @@ export function PageEditor({
                 if (to) navigate(to);
               }}
             >
-              Discard and leave
+              {t("Discard and leave")}
             </button>
             <button
               type="button"
@@ -707,19 +708,19 @@ export function PageEditor({
                   setLeaveError(null);
                   if (to) navigate(to);
                 } else {
-                  toast("Still couldn't save", "error");
+                  toast(t("Still couldn't save"), "error");
                 }
               }}
             >
-              Retry save
+              {t("Retry save")}
             </button>
           </div>
         }
       >
         <p className="confirm-msg">
-          Your recent changes couldn't be saved: {leaveError}
+          {t("Your recent changes couldn't be saved: {error}", { error: leaveError ?? "" })}
           <br />
-          Retry, or discard these changes and leave.
+          {t("Retry, or discard these changes and leave.")}
         </p>
       </Sheet>
     </div>

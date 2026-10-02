@@ -13,6 +13,8 @@ import appCss from "./styles/app.css?url";
 import { MotionProvider } from "./packages/shell/motion";
 import { installRangeFill } from "./packages/shell/rangeFill";
 import { ToastProvider } from "./packages/shell/toast";
+import { LangProvider } from "./packages/i18n/LangProvider";
+import { t } from "~/packages/i18n";
 
 installRangeFill();
 
@@ -44,7 +46,7 @@ export function Layout({ children }: { children: ReactNode }) {
         <meta property="og:image:height" content="630" />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:image" content="/og-image.jpg" />
-        <title>Paper Collage Diary</title>
+        <title>{t("Paper Collage Diary")}</title>
         <Meta />
         <Links />
       </head>
@@ -72,9 +74,11 @@ export default function App() {
   return (
     <MotionProvider>
       <ToastProvider>
-        <div className="app-frame">
-          <Outlet />
-        </div>
+        <LangProvider>
+          <div className="app-frame">
+            <Outlet />
+          </div>
+        </LangProvider>
       </ToastProvider>
     </MotionProvider>
   );
@@ -83,6 +87,7 @@ export default function App() {
 export function HydrateFallback() {
   return (
     <div className="app-frame">
+      {/* Prerendered in English; kept untranslated so hydration matches. */}
       <div className="boot">Paper Collage Diary · Loading…</div>
     </div>
   );
@@ -94,13 +99,13 @@ export function ErrorBoundary() {
     ? `${error.status} ${error.statusText}`
     : error instanceof Error
       ? error.message
-      : "Unknown error";
+      : t("Unknown error");
   return (
     <div className="app-frame">
       <div className="boot">
-        <p>Something went wrong: {msg}</p>
+        <p>{t("Something went wrong: {error}", { error: msg })}</p>
         <p>
-          <a href="/">Back to bookshelf</a>
+          <a href="/">{t("Back to bookshelf")}</a>
         </p>
       </div>
     </div>

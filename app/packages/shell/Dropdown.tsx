@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Icon, type IconName } from "./Icon";
+import { t } from "../i18n";
 
 export type DropdownItem =
   | "separator"
@@ -105,7 +106,7 @@ export function Dropdown({
             }}
           >
             {it.lead ?? (it.icon ? <Icon name={it.icon} size={18} /> : null)}
-            <span className="dropdown-label">{it.label}</span>
+            <span className="dropdown-label">{typeof it.label === "string" ? t(it.label) : it.label}</span>
             {it.trail ? <span className="dropdown-trail">{it.trail}</span> : null}
           </button>
         ),
