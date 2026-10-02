@@ -1,6 +1,19 @@
 import type { CSSProperties } from "react";
 
-export const COVERS: { id: string; label: string; style: CSSProperties; ink: string }[] = [
+export interface Cover {
+  id: string;
+  label: string;
+  style: CSSProperties;
+  ink: string;
+  /** Illustrated cover (spine and title area drawn in); the name goes in its blank panel. */
+  image?: string;
+}
+
+/**
+ * The original paper covers. No longer offered for new notebooks, but kept so
+ * existing notebooks render unchanged.
+ */
+const LEGACY_COVERS: Cover[] = [
   {
     id: "kraft",
     label: "Kraft",
@@ -76,6 +89,20 @@ export const COVERS: { id: string; label: string; style: CSSProperties; ink: str
   },
 ];
 
-export function coverOf(id: string) {
-  return COVERS.find((c) => c.id === id) ?? COVERS[0];
+/** Illustrated covers in public/covers, named 01, 02, ... */
+const IMAGE_COVER_COUNT = 10;
+
+export const COVERS: Cover[] = Array.from({ length: IMAGE_COVER_COUNT }, (_, i) => {
+  const id = String(i + 1).padStart(2, "0");
+  return {
+    id,
+    label: id,
+    ink: "#2b2723",
+    image: `/covers/${id}.webp`,
+    style: { backgroundImage: `url(/covers/${id}.webp)`, backgroundSize: "cover", backgroundPosition: "center", backgroundColor: "#f3f1ec" },
+  };
+});
+
+export function coverOf(id: string): Cover {
+  return COVERS.find((c) => c.id === id) ?? LEGACY_COVERS.find((c) => c.id === id) ?? COVERS[0];
 }

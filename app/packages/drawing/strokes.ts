@@ -105,7 +105,7 @@ export function translateStroke(s: Stroke, dx: number, dy: number): Stroke {
     pts[i] += dx;
     pts[i + 1] += dy;
   }
-  return { ...s, points: pts };
+  return s.shape ? { ...s, points: pts, shape: { ...s.shape, cx: s.shape.cx + dx, cy: s.shape.cy + dy } } : { ...s, points: pts };
 }
 
 /** Drops points closer than minDist to keep stored strokes compact. */

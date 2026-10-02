@@ -1,0 +1,317 @@
+/* Home sticker board — Figma "IG / home" (402 x 874), scaled to the frame width. */
+
+.home-screen {
+  background: #fedaff;
+}
+
+/* The board is fixed: no vertical scrolling (anything past the screen is cropped). */
+.board-scroll {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+.board-stage {
+  position: relative;
+  min-height: 100%;
+  overflow: hidden;
+}
+
+.board {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 402px;
+  height: 874px;
+  transform-origin: 0 0;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.board.is-doodle {
+  touch-action: none;
+}
+
+.board-shape {
+  position: absolute;
+  display: block;
+  max-width: none;
+  pointer-events: none;
+  user-select: none;
+}
+
+.board-texture {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.board-item {
+  position: absolute;
+  transform-origin: center;
+  touch-action: none;
+  cursor: grab;
+}
+
+.board-item {
+  will-change: left, top, transform;
+}
+
+/* Doodle-like presets span the board; only their line takes touches, so taps
+   on the paper around them count as empty. */
+.board-item.is-flat {
+  pointer-events: none;
+}
+
+.board-item.is-flat path {
+  pointer-events: visibleStroke;
+}
+
+/* Peel-up layer: lifts on touch, springs back down (slight overshoot) on release. */
+.board-lift {
+  width: 100%;
+  height: 100%;
+  transform-origin: 50% 60%;
+  transition:
+    transform 0.42s cubic-bezier(0.34, 1.56, 0.64, 1),
+    filter 0.42s ease-out;
+}
+
+.board-lift.is-lifted {
+  transform: translateY(-6px) scale(1.07) rotate(-2.5deg);
+  filter: drop-shadow(0 14px 12px rgb(60 40 90 / 0.28));
+  transition:
+    transform 0.18s ease-out,
+    filter 0.18s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-lift,
+  .board-lift.is-lifted {
+    transition: none;
+  }
+}
+
+.board.is-doodle .board-item {
+  pointer-events: none;
+}
+
+.board-preset {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 1.5px 2px rgb(60 40 90 / 0.16));
+}
+
+.board-preset > svg {
+  display: block;
+  overflow: visible;
+}
+
+.board-preset.is-flat {
+  filter: none;
+}
+
+/* Small flat icons get their die-cut edge from stacked shadows. */
+.board-preset.is-icon {
+  filter: drop-shadow(1.6px 0 0 #fff) drop-shadow(-1.6px 0 0 #fff) drop-shadow(0 1.6px 0 #fff) drop-shadow(0 -1.6px 0 #fff)
+    drop-shadow(0 1.5px 1.5px rgb(0 0 0 / 0.2));
+}
+
+.board-actbar {
+  position: absolute;
+  z-index: 20;
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  background: var(--background);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-menu);
+}
+
+.board-actbar .icon-btn.is-danger {
+  color: var(--destructive);
+}
+
+.home-top {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 25;
+  pointer-events: none;
+}
+
+.home-top > * {
+  pointer-events: auto;
+}
+
+.home-top .float-group {
+  position: static;
+}
+
+.home-date {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  background: var(--background);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-float);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.home-done {
+  min-height: 40px;
+  box-shadow: var(--shadow-float);
+}
+
+.home-drawbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 8px 8px calc(10px + env(safe-area-inset-bottom));
+  background: var(--background);
+  border-top: 1px solid var(--border-soft);
+}
+
+.home-drawbar .st-tool {
+  width: 44px;
+}
+
+/* Add sticker sheet */
+.add-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-flow: dense;
+  gap: 10px;
+  margin: 14px 0 8px;
+}
+
+.add-cell {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  padding: 6px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--canvas-paper);
+  cursor: pointer;
+}
+
+.add-cell:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-sel);
+}
+
+.add-cell.is-wide {
+  grid-column: span 2;
+  aspect-ratio: 2.1;
+}
+
+/* A fixed box inside the cell; each preview SVG scales to fit it (meet),
+   so nothing depends on percentage widths that iOS Safari sizes differently. */
+.add-art {
+  position: absolute;
+  inset: 14%;
+}
+
+.add-cell.is-wide .add-art {
+  inset: 12% 7%;
+}
+
+.add-art .board-preset,
+.add-art .board-preset > svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Board settings sheet */
+.board-colors {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+  margin: 10px 0 18px;
+}
+
+.board-colors button {
+  aspect-ratio: 1;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgb(0 0 0 / 0.08);
+  cursor: pointer;
+}
+
+.board-colors button.is-custom {
+  display: grid;
+  place-items: center;
+  border: 1.5px dashed #bbb;
+  color: #888;
+  background: conic-gradient(from 90deg, #fedaff, #cfe4fb, #cdeedd, #fff1a1, #fedaff);
+}
+
+.board-colors button.is-custom.is-active {
+  border: 1px solid rgb(0 0 0 / 0.08);
+}
+
+.board-colors button.is-active {
+  box-shadow: var(--ring-sel);
+}
+
+.board-toggle {
+  margin: 18px 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.board-links {
+  margin-top: 10px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.board-links .menu-item {
+  width: 100%;
+  padding: 0;
+}
+
+.motion-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0 4px;
+}
+
+.motion-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.motion-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #cfcfcf;
+  flex: none;
+}
+
+.motion-dot.is-on {
+  background: var(--success);
+}

@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 export const DB_NAME = "paper-collage-diary";
 export const DB_VERSION = 1;
 
@@ -176,10 +177,10 @@ export function isQuotaError(err: unknown): boolean {
 
 export function describeError(err: unknown): string {
   if (isQuotaError(err)) {
-    return "Storage is full. Empty the trash, or export a backup and delete some content, then try again.";
+    return t("Storage is full. Empty the trash, or export a backup and delete some content, then try again.");
   }
   if (err instanceof Error) {
-    return err.message;
+    return t(err.message);
   }
   return String(err);
 }

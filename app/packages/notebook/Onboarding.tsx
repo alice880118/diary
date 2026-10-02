@@ -1,20 +1,21 @@
 import { useState } from "react";
 import { NotebookForm, type NotebookFormValue } from "./NotebookForm";
+import { t } from "../i18n";
 
 const SLIDES = [
   {
-    title: "Flip pages like a real diary",
-    body: "Type, handwrite, doodle, and add images and links. Keep separate notebooks and look back month by month.",
+    get title() { return t("Flip pages like a real diary"); },
+    get body() { return t("Type, handwrite, doodle, and add images and links. Keep separate notebooks and look back month by month."); },
     emoji: "📔",
   },
   {
-    title: "Make your own paper stickers",
-    body: "Draw or import a photo, pick from 30 paper textures, print in up to four risograph colors, and finish as clear, holographic, or white stickers.",
+    get title() { return t("Make your own paper stickers"); },
+    get body() { return t("Draw or import a photo, pick from 30 paper textures, print in up to 15 risograph colors, and finish as clear, holographic, or white stickers."); },
     emoji: "✂️",
   },
   {
-    title: "Your data stays on this device",
-    body: "No account needed and nothing is uploaded. Clearing browser data removes your content, so remember to export a backup in Settings.",
+    get title() { return t("Your data stays on this device"); },
+    get body() { return t("No account needed and nothing is uploaded. Clearing browser data removes your content, so remember to export a backup in Settings."); },
     emoji: "🔒",
   },
 ];
@@ -54,20 +55,20 @@ export function Onboarding({
           </div>
           <div className="row" style={{ justifyContent: "center" }}>
             <button type="button" className="btn btn-ghost" onClick={() => setStep(SLIDES.length)}>
-              Skip
+              {t("Skip")}
             </button>
             <button type="button" className="btn btn-primary" onClick={() => setStep(step + 1)}>
-              {step === SLIDES.length - 1 ? "Create first notebook" : "Next"}
+              {step === SLIDES.length - 1 ? t("Create first notebook") : t("Next")}
             </button>
           </div>
         </div>
       ) : (
         <>
-          <h2 style={{ margin: "0 0 4px" }}>Create your first notebook</h2>
+          <h2 style={{ margin: "0 0 4px" }}>{t("Create your first notebook")}</h2>
           <p className="muted" style={{ marginTop: 0 }}>
-            Pick a name, cover, and default page style. You can change them later.
+            {t("Pick a name, cover, and default page style. You can change them later.")}
           </p>
-          <NotebookForm submitText="Create notebook" busy={busy} onSubmit={onCreate} />
+          <NotebookForm submitText={t("Create notebook")} busy={busy} onSubmit={onCreate} />
         </>
       )}
     </div>

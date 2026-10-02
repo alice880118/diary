@@ -3,6 +3,7 @@ import { PAGE_H, PAGE_W, type Page, type PageObject } from "../db/types";
 import { PageSurface } from "../page/PageSurface";
 import { Icon } from "../shell/Icon";
 import "./reader.css";
+import { t } from "../i18n";
 
 interface FlipState {
   dir: 1 | -1;
@@ -326,7 +327,7 @@ export function PageFlipper({
         <button
           type="button"
           className="icon-btn"
-          aria-label="Previous page"
+          aria-label={t("Previous page")}
           disabled={index <= 0}
           onClick={() => turn(-1)}
         >
@@ -339,7 +340,7 @@ export function PageFlipper({
         <button
           type="button"
           className="icon-btn"
-          aria-label="Next page"
+          aria-label={t("Next page")}
           disabled={index >= pages.length - 1}
           onClick={() => turn(1)}
         >

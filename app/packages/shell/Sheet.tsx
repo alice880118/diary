@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "./Icon";
+import { t } from "../i18n";
 
 /**
  * Sheets render into the app frame, not inside the screen: a scroll container
@@ -93,7 +94,7 @@ export function Sheet({
         <div className="sheet-head">
           <div className="sheet-title">{title}</div>
           {headerRight ?? (
-            <button type="button" className="icon-btn" aria-label="Close" onClick={onClose}>
+            <button type="button" className="icon-btn" aria-label={t("Close")} onClick={onClose}>
               <Icon name="close" />
             </button>
           )}
@@ -131,7 +132,7 @@ export function ConfirmSheet({
       footer={
         <div className="row-end">
           <button type="button" className="btn" onClick={onClose}>
-            Cancel
+            {t("Cancel")}
           </button>
           <button
             type="button"
@@ -173,7 +174,7 @@ export function Menu({
               it.onSelect();
             }}
           >
-            {it.label}
+            {typeof it.label === "string" ? t(it.label) : it.label}
           </button>
         ))}
       </div>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { isValidDate } from "../db/id";
 import { Sheet } from "../shell/Sheet";
+import { t } from "../i18n";
 
 export function DateSheet({
   open,
@@ -32,7 +33,7 @@ export function DateSheet({
       footer={
         <div className="row-end">
           <button type="button" className="btn" onClick={onClose}>
-            Cancel
+            {t("Cancel")}
           </button>
           <button
             type="button"
@@ -46,16 +47,16 @@ export function DateSheet({
       }
     >
       <label className="field">
-        <span className="field-label">Entry date</span>
+        <span className="field-label">{t("Entry date")}</span>
         <input
           type="date"
           className={`input${valid ? "" : " is-error"}`}
           value={date}
           onChange={(e) => setDate(e.target.value)}
         />
-        {!valid ? <span className="field-error">Choose a valid date</span> : null}
+        {!valid ? <span className="field-error">{t("Choose a valid date")}</span> : null}
       </label>
-      <p className="muted small">The date decides which month the page belongs to. You can reorder pages separately.</p>
+      <p className="muted small">{t("The date decides which month the page belongs to. You can reorder pages separately.")}</p>
     </Sheet>
   );
 }

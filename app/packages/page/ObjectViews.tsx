@@ -5,6 +5,7 @@ import {
   type ImageObject,
   type LinkObject,
   type NoteObject,
+  type NoteShape,
   type PageObject,
   type LinkShape,
   type StickerObject,
@@ -15,6 +16,7 @@ import { StrokeCanvas } from "../drawing/StrokeCanvas";
 import type { PeelState } from "../sticker/geometry";
 import { StickerArt } from "../sticker/StickerArt";
 import { fontStack } from "./fonts";
+import { t } from "../i18n";
 
 export function objectFrameStyle(o: PageObject): CSSProperties {
   return {
@@ -28,6 +30,9 @@ export function objectFrameStyle(o: PageObject): CSSProperties {
   };
 }
 
+/** Widest an auto-width text box grows before wrapping (page units). */
+export const TEXT_AUTO_MAX_W = 820;
+
 export const TextView = forwardRef<HTMLDivElement, { o: TextObject }>(function TextView(
   { o },
   ref,
@@ -39,8 +44,9 @@ export const TextView = forwardRef<HTMLDivElement, { o: TextObject }>(function T
         position: "absolute",
         left: 0,
         top: 0,
-        width: o.w,
+        ...(o.autoW ? { width: "max-content", maxWidth: TEXT_AUTO_MAX_W, minWidth: 40 } : { width: o.w }),
         fontFamily: fontStack(o.font),
+        fontWeight: o.weight ?? 400,
         fontSize: o.size,
         lineHeight: 1.45,
         color: o.color,
@@ -49,7 +55,7 @@ export const TextView = forwardRef<HTMLDivElement, { o: TextObject }>(function T
         overflowWrap: "anywhere",
       }}
     >
-      {o.text || <span style={{ opacity: 0.35 }}>Enter text</span>}
+      {o.text || <span style={{ opacity: 0.35 }}>{t("Enter text")}</span>}
     </div>
   );
 });
@@ -57,7 +63,7 @@ export const TextView = forwardRef<HTMLDivElement, { o: TextObject }>(function T
 export function ImageView({ o }: { o: ImageObject }) {
   const { url, missing } = useAssetUrl(o.assetId);
   if (missing) {
-    return <div className="sticker-missing" style={{ position: "absolute", inset: 0 }}>Missing image</div>;
+    return <div className="sticker-missing" style={{ position: "absolute", inset: 0 }}>{t("Missing image")}</div>;
   }
   return (
     <div
@@ -104,25 +110,25 @@ export function StickerView({
 }
 
 export const NOTE_COLORS = [
-  { id: "#fff3a6", label: "Yellow" },
-  { id: "#ffd6df", label: "Pink" },
-  { id: "#cfe8ff", label: "Blue" },
-  { id: "#d8f5c8", label: "Green" },
-  { id: "#e8d3b0", label: "Kraft" },
-  { id: "#fffdf6", label: "White" },
+  { id: "#fff3a6", get label() { return t("Yellow"); } },
+  { id: "#ffd6df", get label() { return t("Pink"); } },
+  { id: "#cfe8ff", get label() { return t("Blue"); } },
+  { id: "#d8f5c8", get label() { return t("Green"); } },
+  { id: "#e8d3b0", get label() { return t("Kraft"); } },
+  { id: "#fffdf6", get label() { return t("White"); } },
 ];
 
 export const NOTE_SHAPES = [
-  { id: "square", label: "Square" },
-  { id: "rounded", label: "Rounded" },
-  { id: "torn", label: "Torn" },
-  { id: "cloud", label: "Cloud" },
+  { id: "square", get label() { return t("Square"); } },
+  { id: "rounded", get label() { return t("Rounded"); } },
+  { id: "torn", get label() { return t("Torn"); } },
+  { id: "cloud", get label() { return t("Cloud"); } },
 ] as const;
 
 export const NOTE_FIXES = [
-  { id: "tape", label: "Tape" },
-  { id: "pin", label: "Pin" },
-  { id: "top", label: "Top edge" },
+  { id: "tape", get label() { return t("Tape"); } },
+  { id: "pin", get label() { return t("Pin"); } },
+  { id: "top", get label() { return t("Top edge"); } },
 ] as const;
 
 /** Original (v1) tape, used whenever a note has no tapePattern. */
@@ -132,16 +138,16 @@ const LEGACY_TAPE =
 export const TAPE_COLORS = ["#f3b48b", "#f2a7bd", "#f4d774", "#a8d8b9", "#9cc7ef", "#c3b1e6", "#d7b98e", "#bdbdbd"];
 
 export const TAPE_PATTERNS: { id: TapePattern; label: string }[] = [
-  { id: "solid", label: "Solid" },
-  { id: "stripe", label: "Stripe" },
-  { id: "diagonal", label: "Diagonal" },
-  { id: "dots", label: "Dots" },
-  { id: "gingham", label: "Gingham" },
-  { id: "grid", label: "Grid" },
-  { id: "wave", label: "Wave" },
-  { id: "stars", label: "Stars" },
-  { id: "hearts", label: "Hearts" },
-  { id: "floral", label: "Floral" },
+  { id: "solid", get label() { return t("Solid"); } },
+  { id: "stripe", get label() { return t("Stripe"); } },
+  { id: "diagonal", get label() { return t("Diagonal"); } },
+  { id: "dots", get label() { return t("Dots"); } },
+  { id: "gingham", get label() { return t("Gingham"); } },
+  { id: "grid", get label() { return t("Grid"); } },
+  { id: "wave", get label() { return t("Wave"); } },
+  { id: "stars", get label() { return t("Stars"); } },
+  { id: "hearts", get label() { return t("Hearts"); } },
+  { id: "floral", get label() { return t("Floral"); } },
 ];
 
 /** Washi-tape fill: a light motif over the tape color (made translucent by the caller). */
@@ -181,7 +187,12 @@ export function tapeFill(pattern: TapePattern, color?: string): string {
 }
 
 function noteShapeStyle(o: NoteObject): CSSProperties {
-  switch (o.shape) {
+  return noteShapeCss(o.shape);
+}
+
+/** Clip / radius for a sticky-note shape; also used by month covers. */
+export function noteShapeCss(shape: NoteShape): CSSProperties {
+  switch (shape) {
     case "rounded":
       return { borderRadius: 26 };
     case "torn": {
@@ -391,24 +402,67 @@ export function LinkSticker({
   );
 }
 
+/** "youtube.com" style key address for labels. */
+export function shortHost(url: string): string {
+  return linkHost(url).replace(/^www\./, "");
+}
+
+/** Key address under a link sticker, cut with … when long. */
+export function LinkStickerLabel({ url, size = 22 }: { url: string; size?: number }) {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: "calc(100% + 6px)",
+        left: "50%",
+        transform: "translateX(-50%)",
+        maxWidth: "150%",
+        padding: "2px 10px",
+        borderRadius: 999,
+        background: "rgba(255,255,255,0.92)",
+        boxShadow: "0 1px 2px rgba(0,0,0,0.12)",
+        fontSize: size,
+        fontWeight: 600,
+        lineHeight: 1.3,
+        color: "#3a332c",
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        pointerEvents: "none",
+      }}
+    >
+      {shortHost(url)}
+    </div>
+  );
+}
+
 export function LinkView({ o }: { o: LinkObject }) {
   const title = o.title || o.meta?.siteTitle || linkHost(o.url);
   if (o.display === "sticker") {
     return (
-      <LinkSticker
-        shape={o.shape}
-        color={o.color}
-        label={title}
-        style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
-      />
+      <>
+        <LinkSticker
+          shape={o.shape}
+          color={o.color}
+          label={title}
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+        />
+        <LinkStickerLabel url={o.url} />
+      </>
     );
   }
   if (o.display === "tag") {
+    // Hugs its content and stays centered in the box, so older (wider) tags fit too.
     return (
       <div
         style={{
           position: "absolute",
-          inset: 0,
+          top: 0,
+          bottom: 0,
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: "max-content",
+          maxWidth: "100%",
           display: "flex",
           alignItems: "center",
           gap: 10,

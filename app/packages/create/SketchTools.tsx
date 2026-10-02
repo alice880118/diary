@@ -8,6 +8,7 @@ import { Icon, type IconName } from "../shell/Icon";
 import { Popover } from "../shell/Popover";
 import { Sheet } from "../shell/Sheet";
 import "./create.css";
+import { t } from "../i18n";
 
 /* ------------------------------------------------------------------ */
 /* Step pill (header)                                                  */
@@ -40,13 +41,13 @@ export function StepPill({
         className={`step-pill${open ? " is-open" : ""}`}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={`Step ${idx + 1} of ${steps.length}: ${steps[idx]?.label}`}
+        aria-label={t("Step {n} of {total}: {name}", { n: idx + 1, total: steps.length, name: t(steps[idx]?.label ?? "") })}
         onClick={() => setOpen((v) => !v)}
       >
         {steps.map((s, i) => (
           <i key={s.id} className={i <= idx ? "is-on" : undefined} />
         ))}
-        <span>{steps[idx]?.label}</span>
+        <span>{t(steps[idx]?.label ?? "")}</span>
         <Icon name="chev" size={12} />
       </button>
       <Dropdown
@@ -57,7 +58,7 @@ export function StepPill({
         items={steps.map((s, i) => ({
           label: i === idx ? <b>{s.label}</b> : s.label,
           lead: <span className={`step-dot${i < idx || i === idx ? " is-done" : ""}`}>{i + 1}</span>,
-          trail: i === idx ? <Icon name="check" size={18} /> : s.edited ? "Edited" : undefined,
+          trail: i === idx ? <Icon name="check" size={18} /> : s.edited ? t("Edited") : undefined,
           highlighted: i === idx,
           onSelect: () => onPick(s.id),
         }))}
@@ -194,7 +195,7 @@ export function ColorButton({
 }) {
   const c = disabled ? "#c8c8c8" : color;
   return (
-    <button ref={btnRef} type="button" className="st-tool" aria-label="Color" title="Color" onClick={onClick}>
+    <button ref={btnRef} type="button" className="st-tool" aria-label={t("Color")} title={t("Color")} onClick={onClick}>
       <span className="color-dot" style={{ background: c, boxShadow: `0 0 0 2px #fff, 0 0 0 3.5px ${c === "#ffffff" ? "#ccc" : c}` }} />
     </button>
   );
@@ -291,7 +292,7 @@ export function SortableRows<T extends { id: string; name: string }>({
           >
             <span
               className="layer-grip"
-              aria-label={`Reorder ${l.name}`}
+              aria-label={t("Reorder {name}", { name: l.name })}
               onClick={(e) => e.stopPropagation()}
               onPointerDown={(e) => {
                 e.stopPropagation();
@@ -394,7 +395,7 @@ export function LayersSheet({
   return (
     <Sheet
       open={open}
-      title="Layers"
+      title={t("Layers")}
       onClose={onClose}
       studio
       height={380}
@@ -403,7 +404,7 @@ export function LayersSheet({
           ref={plusRef}
           type="button"
           className={`icon-btn${plusOpen ? " is-pressed" : " is-filled"}`}
-          aria-label="Add layer"
+          aria-label={t("Add layer")}
           onClick={() => setPlusOpen((v) => !v)}
         >
           <Icon name="plus" />
@@ -433,7 +434,7 @@ export function LayersSheet({
               ) : (
                 <>
                   <b>{l.name}</b>
-                  {l.kind === "image" ? <span>Image</span> : null}
+                  {l.kind === "image" ? <span>{t("Image")}</span> : null}
                 </>
               )}
             </div>
@@ -441,7 +442,7 @@ export function LayersSheet({
               type="button"
               className="icon-btn"
               style={l.visible ? undefined : { color: "#bbb" }}
-              aria-label={l.visible ? `Hide ${l.name}` : `Show ${l.name}`}
+              aria-label={l.visible ? t("Hide {name}", { name: l.name }) : t("Show {name}", { name: l.name })}
               onClick={(e) => {
                 e.stopPropagation();
                 onPatch(l.id, { visible: !l.visible });
@@ -452,7 +453,7 @@ export function LayersSheet({
             <button
               type="button"
               className={`icon-btn${menuFor === l.id ? " is-pressed" : ""}`}
-              aria-label={`More for ${l.name}`}
+              aria-label={t("More for {name}", { name: l.name })}
               onClick={(e) => {
                 e.stopPropagation();
                 menuRef.current = e.currentTarget;
@@ -472,10 +473,10 @@ export function LayersSheet({
         items={
           menuLayer
             ? [
-                { icon: "edit", label: "Rename", onSelect: () => setRenaming(menuLayer.id) },
-                { icon: "copy", label: "Duplicate", onSelect: () => onDuplicate(menuLayer.id) },
+                { icon: "edit", get label() { return t("Rename"); }, onSelect: () => setRenaming(menuLayer.id) },
+                { icon: "copy", get label() { return t("Duplicate"); }, onSelect: () => onDuplicate(menuLayer.id) },
                 "separator",
-                { icon: "trash", label: "Delete", danger: true, disabled: art.layers.length <= 1, onSelect: () => onDelete(menuLayer.id) },
+                { icon: "trash", get label() { return t("Delete"); }, danger: true, disabled: art.layers.length <= 1, onSelect: () => onDelete(menuLayer.id) },
               ]
             : []
         }
@@ -486,8 +487,8 @@ export function LayersSheet({
         align="end"
         onClose={() => setPlusOpen(false)}
         items={[
-          { icon: "brush", label: "New sketch layer", onSelect: onAddSketch },
-          { icon: "image2", label: "Import image", onSelect: onImport },
+          { icon: "brush", get label() { return t("New sketch layer"); }, onSelect: onAddSketch },
+          { icon: "image2", get label() { return t("Import image"); }, onSelect: onImport },
         ]}
       />
     </Sheet>

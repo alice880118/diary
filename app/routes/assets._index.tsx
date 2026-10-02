@@ -32,12 +32,13 @@ import { PlacementSheet } from "~/packages/sticker/PlacementSheet";
 import { StickerArt } from "~/packages/sticker/StickerArt";
 import { MATERIALS } from "~/packages/sticker/StickerArt";
 import "~/packages/create/create.css";
+import { t, tn } from "~/packages/i18n";
 
 type Tab = "stickers" | "drafts" | "images";
 
 function ImageTile({ asset }: { asset: Asset }) {
   const { url, missing } = useAssetUrl(asset.id);
-  if (missing) return <div className="muted small">Missing asset</div>;
+  if (missing) return <div className="muted small">{t("Missing asset")}</div>;
   return url ? <img src={url} alt={asset.name} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : null;
 }
 
@@ -73,7 +74,7 @@ function StickerDetail({
     if (n === sticker.name && category.trim() === sticker.category) return;
     try {
       await saveSticker({ ...sticker, name: n, category: category.trim() });
-      toast("Updated", "success");
+      toast(t("Updated"), "success");
     } catch (err) {
       toast(describeError(err), "error");
     }
@@ -98,7 +99,7 @@ function StickerDetail({
         deletedAt: null,
       };
       await saveArtwork(copy);
-      toast("The original draft was deleted, so it was rebuilt from this version");
+      toast(t("The original draft was deleted, so it was rebuilt from this version"));
       navigate(`/create/${copy.id}`);
     } catch (err) {
       toast(describeError(err), "error");
@@ -110,7 +111,7 @@ function StickerDetail({
 
   return (
     <>
-      <Sheet open title="Sticker details" onClose={onClose} tall>
+      <Sheet open title={t("Sticker details")} onClose={onClose} tall>
         {version ? (
           <div
             style={{
@@ -135,27 +136,27 @@ function StickerDetail({
             </div>
           </div>
         ) : (
-          <EmptyState title="This sticker has no usable versions" />
+          <EmptyState title={t("This sticker has no usable versions")} />
         )}
         <label className="field">
-          <span className="field-label">Name</span>
+          <span className="field-label">{t("Name")}</span>
           <input className="input" value={name} maxLength={30} onChange={(e) => setName(e.target.value)} onBlur={() => void saveMeta()} />
         </label>
         <label className="field">
-          <span className="field-label">Category</span>
-          <input className="input" value={category} maxLength={20} onChange={(e) => setCategory(e.target.value)} onBlur={() => void saveMeta()} placeholder="Uncategorized" />
+          <span className="field-label">{t("Category")}</span>
+          <input className="input" value={category} maxLength={20} onChange={(e) => setCategory(e.target.value)} onBlur={() => void saveMeta()} placeholder={t("Uncategorized")} />
         </label>
         <div className="muted small" style={{ marginBottom: 10 }}>
-          Material: {mat?.label ?? "—"} · Created {formatTimestamp(sticker.createdAt, false)} · Used {usage} {usage === 1 ? "time" : "times"} in diary
+          {t("Material")}: {mat ? t(mat.label) : "—"} · {t("Created {date}", { date: formatTimestamp(sticker.createdAt, false) })} · {tn(usage, "Used {n} time in diary", "Used {n} times in diary")}
         </div>
 
         {sticker.versions.length > 1 ? (
           <>
-            <div className="section-title">Versions</div>
+            <div className="section-title">{t("Versions")}</div>
             <div className="hscroll" style={{ marginBottom: 12 }}>
               {[...sticker.versions].reverse().map((v) => (
                 <button key={v.no} type="button" className={`chip${v.no === version?.no ? " is-active" : ""}`} onClick={() => setVno(v.no)}>
-                  Version {v.no} · {formatTimestamp(v.createdAt, false)}
+                  {t("Version {n}", { n: v.no })} · {formatTimestamp(v.createdAt, false)}
                 </button>
               ))}
             </div>
@@ -164,24 +165,24 @@ function StickerDetail({
 
         <div className="row-wrap" style={{ marginBottom: 12 }}>
           <button type="button" className="btn btn-primary btn-sm" disabled={!version} onClick={() => setPlacing(true)}>
-            Add to diary
+            {t("Add to diary")}
           </button>
           <button type="button" className="btn btn-sm" disabled={!version} onClick={() => void reEdit()}>
-            Edit again
+            {t("Edit again")}
           </button>
           <button
             type="button"
             className="btn btn-sm"
             onClick={() =>
               void duplicateSticker(sticker.id)
-                .then(() => toast("Duplicated", "success"))
+                .then(() => toast(t("Duplicated"), "success"))
                 .catch((err) => toast(describeError(err), "error"))
             }
           >
-            Duplicate
+            {t("Duplicate")}
           </button>
           <button type="button" className="btn btn-sm btn-danger-text" onClick={() => setConfirmDel(true)}>
-            Delete
+            {t("Delete")}
           </button>
         </div>
         {version ? (
@@ -194,20 +195,20 @@ function StickerDetail({
       <PlacementSheet open={placing} stickerId={sticker.id} onClose={() => setPlacing(false)} />
       <ConfirmSheet
         open={confirmDel}
-        title="Delete sticker?"
+        title={t("Delete sticker?")}
         danger
-        confirmText="Move to trash"
+        confirmText={t("Move to trash")}
         message={
           usage > 0
-            ? `This sticker is used in ${usage} ${usage === 1 ? "place" : "places"} in your diary. Deleting it from the library won't affect stickers already placed, and you can restore it from the trash.`
-            : "The sticker will be moved to the trash. You can restore it in Settings."
+            ? tn(usage, "This sticker is used in {n} place in your diary. Deleting it from the library won't affect stickers already placed, and you can restore it from the trash.", "This sticker is used in {n} places in your diary. Deleting it from the library won't affect stickers already placed, and you can restore it from the trash.")
+            : t("The sticker will be moved to the trash. You can restore it in Settings.")
         }
         onClose={() => setConfirmDel(false)}
         onConfirm={() => {
           setConfirmDel(false);
           void trashSticker(sticker.id)
             .then(() => {
-              toast("Moved to trash");
+              toast(t("Moved to trash"));
               onClose();
             })
             .catch((err) => toast(describeError(err), "error"));
@@ -241,12 +242,12 @@ function ImageDetail({ asset, onClose }: { asset: Asset; onClose: () => void }) 
   };
 
   return (
-    <Sheet open title="Imported image" onClose={onClose} tall>
+    <Sheet open title={t("Imported image")} onClose={onClose} tall>
       <div className="checker" style={{ height: 220, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 10, marginBottom: 12 }}>
-        {missing ? <span className="muted">Missing asset</span> : url ? <img src={url} alt={asset.name} style={{ maxWidth: "100%", maxHeight: "100%" }} /> : null}
+        {missing ? <span className="muted">{t("Missing asset")}</span> : url ? <img src={url} alt={asset.name} style={{ maxWidth: "100%", maxHeight: "100%" }} /> : null}
       </div>
       <label className="field">
-        <span className="field-label">Name</span>
+        <span className="field-label">{t("Name")}</span>
         <input
           className="input"
           value={name}
@@ -263,7 +264,7 @@ function ImageDetail({ asset, onClose }: { asset: Asset; onClose: () => void }) 
       </div>
       <div className="row-wrap">
         <button type="button" className="btn btn-primary btn-sm" disabled={busy || missing} onClick={() => void createFrom()}>
-          {busy ? "Processing…" : "Make a sticker"}
+          {busy ? t("Processing…") : t("Make a sticker")}
         </button>
         <button
           type="button"
@@ -271,16 +272,16 @@ function ImageDetail({ asset, onClose }: { asset: Asset; onClose: () => void }) 
           onClick={() =>
             void trashAsset(asset.id)
               .then(() => {
-                toast("Moved to trash");
+                toast(t("Moved to trash"));
                 onClose();
               })
               .catch((err) => toast(describeError(err), "error"))
           }
         >
-          Delete
+          {t("Delete")}
         </button>
       </div>
-      <p className="muted small">Deleting the original image won't affect finished stickers or diary pages.</p>
+      <p className="muted small">{t("Deleting the original image won't affect finished stickers or diary pages.")}</p>
     </Sheet>
   );
 }
@@ -310,13 +311,13 @@ export default function AssetsHome() {
   const image = (images.data ?? []).find((a) => a.id === openImage) ?? null;
 
   return (
-    <Screen nav header={<AppHeader title="Library" right={<SettingsLink />} />} bodyStyle={{ padding: 16 }}>
+    <Screen nav header={<AppHeader title={t("Library")} right={<SettingsLink />} />} bodyStyle={{ padding: 16 }}>
       <div className="tabs" style={{ marginBottom: 10 }}>
         {(
           [
-            ["stickers", `Stickers ${stickers.data?.length ?? ""}`],
-            ["drafts", `Drafts ${arts.data?.length ?? ""}`],
-            ["images", `Images ${images.data?.length ?? ""}`],
+            ["stickers", t("Stickers {x}", { x: stickers.data?.length ?? "" })],
+            ["drafts", t("Drafts {x}", { x: arts.data?.length ?? "" })],
+            ["images", t("Images {x}", { x: images.data?.length ?? "" })],
           ] as const
         ).map(([id, label]) => (
           <button key={id} type="button" className={`tab${tab === id ? " is-active" : ""}`} onClick={() => setTab(id)}>
@@ -326,7 +327,7 @@ export default function AssetsHome() {
       </div>
       <div className="row" style={{ marginBottom: 10 }}>
         <Icon name="search" size={18} />
-        <input className="input" style={{ flex: 1 }} placeholder="Search by name or category" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className="input" style={{ flex: 1 }} placeholder={t("Search by name or category")} value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
 
       {tab === "stickers" ? (
@@ -334,7 +335,7 @@ export default function AssetsHome() {
           {cats.length ? (
             <div className="hscroll" style={{ marginBottom: 12 }}>
               <button type="button" className={`chip${cat === null ? " is-active" : ""}`} onClick={() => setCat(null)}>
-                All
+                {t("All")}
               </button>
               {cats.map((c) => (
                 <button key={c} type="button" className={`chip${cat === c ? " is-active" : ""}`} onClick={() => setCat(c)}>
@@ -345,16 +346,16 @@ export default function AssetsHome() {
           ) : null}
           {(stickers.data ?? []).length === 0 ? (
             <EmptyState
-              title="No stickers yet"
-              hint="Draw one or import a photo in Create. Finished stickers show up here."
+              title={t("No stickers yet")}
+              hint={t("Draw one or import a photo in Create. Finished stickers show up here.")}
               action={
                 <Link to="/create" className="btn btn-primary">
-                  Go to Create
+                  {t("Go to Create")}
                 </Link>
               }
             />
           ) : shownStickers.length === 0 ? (
-            <EmptyState title="No matching stickers" hint="Try a different keyword or category." />
+            <EmptyState title={t("No matching stickers")} hint={t("Try a different keyword or category.")} />
           ) : (
             <div className="create-home-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
               {shownStickers.map((s) => (
@@ -374,7 +375,7 @@ export default function AssetsHome() {
 
       {tab === "drafts" ? (
         drafts.length === 0 ? (
-          <EmptyState title={needle ? "No matching drafts" : "No drafts"} />
+          <EmptyState title={needle ? t("No matching drafts") : t("No drafts")} />
         ) : (
           <div className="create-home-grid">
             {drafts.map((a) => (
@@ -382,8 +383,8 @@ export default function AssetsHome() {
                 <div className="create-tile-thumb">
                   <ArtThumb art={a} />
                 </div>
-                <div style={{ fontWeight: 600 }}>{a.name}</div>
-                <div className="muted small">{a.stickerId ? "Has sticker" : "Draft"} · {formatTimestamp(a.updatedAt, false)}</div>
+                <div style={{ fontWeight: 600 }}>{a.name === "Untitled artwork" ? t("Untitled artwork") : a.name}</div>
+                <div className="muted small">{a.stickerId ? t("Has sticker") : t("Draft")} · {formatTimestamp(a.updatedAt, false)}</div>
               </Link>
             ))}
           </div>
@@ -392,7 +393,7 @@ export default function AssetsHome() {
 
       {tab === "images" ? (
         shownImages.length === 0 ? (
-          <EmptyState title={needle ? "No matching images" : "No imported images yet"} hint="Original photos you import in Create are kept here." />
+          <EmptyState title={needle ? t("No matching images") : t("No imported images yet")} hint={t("Original photos you import in Create are kept here.")} />
         ) : (
           <div className="create-home-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
             {shownImages.map((a) => (
@@ -401,7 +402,7 @@ export default function AssetsHome() {
                   <ImageTile asset={a} />
                 </div>
                 <div className="small" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {a.name || "Untitled"}
+                  {a.name || t("Untitled")}
                 </div>
               </button>
             ))}

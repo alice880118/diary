@@ -11,6 +11,7 @@ import { AppHeader, BackButton, EmptyState, Screen } from "~/packages/shell/Layo
 import { useReduceMotion } from "~/packages/shell/motion";
 import { Sheet } from "~/packages/shell/Sheet";
 import { useElementSize } from "~/packages/shell/useSize";
+import { t } from "~/packages/i18n";
 
 export default function Reader() {
   const { pid = "" } = useParams();
@@ -49,8 +50,8 @@ export default function Reader() {
   const page = data.data?.page;
   if (data.data && (!page || page.deletedAt || index < 0)) {
     return (
-      <Screen header={<AppHeader title="Page not found" left={<BackButton to="/diary" />} />}>
-        <EmptyState title="This page doesn't exist or is in the trash" />
+      <Screen header={<AppHeader title={t("Page not found")} left={<BackButton to="/diary" />} />}>
+        <EmptyState title={t("This page doesn't exist or is in the trash")} />
       </Screen>
     );
   }
@@ -65,13 +66,13 @@ export default function Reader() {
           left={<BackButton to={back} />}
           right={
             <>
-              <button type="button" className="icon-btn" aria-label="Page thumbnails" onClick={() => setThumbs(true)}>
+              <button type="button" className="icon-btn" aria-label={t("Page thumbnails")} onClick={() => setThumbs(true)}>
                 <Icon name="pages" />
               </button>
               <button
                 type="button"
                 className="icon-btn"
-                aria-label="Edit"
+                aria-label={t("Edit")}
                 onClick={() => navigate(`/page/${pid}/edit`)}
               >
                 <Icon name="edit" />
@@ -95,9 +96,9 @@ export default function Reader() {
           />
         ) : null}
       </div>
-      <Sheet open={thumbs} title="Pages (in reading order)" onClose={() => setThumbs(false)} tall>
+      <Sheet open={thumbs} title={t("Pages (in reading order)")} onClose={() => setThumbs(false)} tall>
         <div className="muted small" style={{ marginBottom: 10 }}>
-          Tap a thumbnail to jump to it. Use the arrows to reorder pages; dates stay the same.
+          {t("Tap a thumbnail to jump to it. Use the arrows to reorder pages; dates stay the same.")}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {pages.map((p, i) => (
@@ -128,7 +129,7 @@ export default function Reader() {
               <button
                 type="button"
                 className="icon-btn"
-                aria-label="Move up"
+                aria-label={t("Move up")}
                 disabled={i === 0}
                 onClick={() => movePage(p.id, -1)}
               >
@@ -137,7 +138,7 @@ export default function Reader() {
               <button
                 type="button"
                 className="icon-btn"
-                aria-label="Move down"
+                aria-label={t("Move down")}
                 disabled={i === pages.length - 1}
                 onClick={() => movePage(p.id, 1)}
               >

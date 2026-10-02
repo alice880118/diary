@@ -280,6 +280,27 @@ a {
   font-weight: 600;
 }
 
+/* Home: the nav floats over the board as a frosted fade instead of a white bar. */
+.bottom-nav.is-glass {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(to bottom, rgb(255 255 255 / 0), rgb(255 255 255 / 0.6) 66%);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  border-top: 0;
+}
+
+.bottom-nav.is-glass .bottom-nav-item {
+  color: #6b5f86;
+}
+
+.bottom-nav.is-glass .bottom-nav-item.is-active {
+  background: rgb(255 255 255 / 0.7);
+  color: var(--foreground);
+}
+
 /* ---------- Buttons ---------- */
 
 .btn,
@@ -907,6 +928,23 @@ input[type="color"] {
   background: var(--success);
 }
 
+.toast.has-action {
+  pointer-events: auto;
+  padding-right: 6px;
+}
+
+.toast-action {
+  border: 0;
+  background: rgb(255 255 255 / 0.16);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  border-radius: 99px;
+  padding: 4px 12px;
+  margin-left: 4px;
+  cursor: pointer;
+}
+
 /* ---------- Segmented control ---------- */
 
 .tabs {
@@ -1217,4 +1255,319 @@ html[data-motion="reduce"] *::after {
   left: 50%;
   transform: translateX(-50%);
   background: var(--primary);
+}
+
+/* ---------- Journal paper (v2 calendar / shelf) ---------- */
+
+/* --diary-bg / --diary-dot follow the "Diary background" setting (see DiaryTheme). */
+.journal-bg {
+  background: var(--diary-bg, var(--journal-page)) radial-gradient(var(--diary-dot, #d9d2c3) 1px, transparent 1.3px) 0 0 / 16px 16px;
+}
+
+/* Washi tape strip; the color/pattern comes from tapeFill(). */
+.deco-tape {
+  position: absolute;
+  height: 18px;
+  opacity: 0.9;
+  clip-path: polygon(0 8%, 4% 0, 8% 10%, 12% 0, 16% 8%, 20% 0, 80% 0, 84% 8%, 88% 0, 92% 10%, 96% 0, 100% 8%, 100% 92%, 96% 100%, 92% 90%, 88% 100%, 84% 92%, 80% 100%, 20% 100%, 16% 92%, 12% 100%, 8% 90%, 4% 100%, 0 92%);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.lab {
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.ell {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* Pick-one option (cover, page style): ring on the swatch, bold label. */
+.opt {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 3px 2px;
+  border: 0;
+  background: none;
+  font-size: 11.5px;
+  color: #666;
+  cursor: pointer;
+}
+
+.opt.is-active {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.opt .opt-box {
+  border-radius: 6px;
+}
+
+/* Outline, not box-shadow: covers carry their own inline shadow. */
+.opt.is-active .opt-box {
+  outline: 1.5px solid var(--foreground);
+  outline-offset: 2px;
+}
+
+.opt:focus-visible {
+  outline: none;
+}
+
+.opt:focus-visible .opt-box {
+  outline: 1.5px solid var(--foreground);
+  outline-offset: 2px;
+}
+
+.hscroll-fade {
+  position: relative;
+}
+
+.hscroll-fade::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 36px;
+  background: linear-gradient(90deg, rgb(255 255 255 / 0), var(--background));
+  pointer-events: none;
+}
+
+.nb-preview {
+  position: relative;
+  height: 180px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #eee;
+  border-radius: var(--radius-lg);
+  margin: 4px 0 16px;
+}
+
+.field-aside {
+  font-weight: 400;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+/* ---------- Bookshelf ---------- */
+
+.nb-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px 16px;
+}
+
+.nb-cell {
+  min-width: 0;
+}
+
+.nb-open {
+  display: block;
+  width: 84%;
+  margin: 0 auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.nb-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 10px;
+  padding-left: 8%;
+}
+
+.nb-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.nb-sub {
+  font-size: 11.5px;
+}
+
+.icon-btn.nb-more {
+  min-width: 32px;
+  height: 32px;
+  padding: 0;
+}
+
+.nb-new {
+  width: 84%;
+  margin: 0 auto;
+  aspect-ratio: 1 / 1.33;
+  border-radius: 4px 12px 12px 4px;
+  border: 1.5px dashed #d6d2c8;
+  background: rgb(255 255 255 / 0.35);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #9a948a;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.continue-card {
+  position: relative;
+  width: 100%;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  margin-bottom: 22px;
+  overflow: visible;
+  border: 1px solid #e6e6e3;
+  border-radius: var(--radius-xl);
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+  cursor: pointer;
+}
+
+.continue-card > svg:last-child {
+  color: var(--muted-foreground);
+  flex: none;
+}
+
+.continue-thumb {
+  width: 44px;
+  height: 58px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  border: 1px solid #e6e6e3;
+  background: var(--journal-page) radial-gradient(#d9d2c3 1px, transparent 1.3px) 0 0 / 8px 8px;
+  color: var(--muted-foreground);
+}
+
+/* ---------- Fill picker (solid / gradient) ---------- */
+
+.fill-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: -6px 0 16px;
+  padding: 12px;
+  border-radius: var(--radius-lg);
+  background: #f7f7f5;
+}
+
+.fill-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.fill-dot {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgb(0 0 0 / 0.1);
+  cursor: pointer;
+}
+
+.fill-dot.is-active {
+  box-shadow: var(--ring-sel);
+}
+
+.fill-dot.is-add {
+  display: grid;
+  place-items: center;
+  border: 1.5px dashed #bbb;
+  color: #999;
+  overflow: hidden;
+}
+
+.fill-dot input,
+.fill-stop input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.fill-grads {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.fill-grads button {
+  aspect-ratio: 1;
+  border-radius: 10px;
+  border: 1px solid rgb(0 0 0 / 0.08);
+  cursor: pointer;
+}
+
+.fill-grads button.is-active {
+  box-shadow: var(--ring-sel);
+}
+
+.fill-stops {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.fill-stop {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 10px 0 6px;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  background: var(--background);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.fill-stop span {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid rgb(0 0 0 / 0.1);
+}
+
+.fill-angles {
+  display: flex;
+  margin-left: auto;
+}
+
+.fill-angles .icon-btn {
+  min-width: 36px;
+  height: 36px;
+}
+
+.fill-angles .icon-btn.is-active {
+  background: var(--foreground);
+  color: #fff;
+}
+
+.diary-bg-preview {
+  height: 56px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-soft);
+  margin-bottom: 12px;
 }

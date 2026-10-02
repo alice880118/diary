@@ -17,6 +17,7 @@ import { Sheet } from "../shell/Sheet";
 import { TEXTURE_CATEGORIES, TEXTURES, textureById, type TextureCategory } from "../textures/catalog";
 import { textureScaleOf, textureThumb } from "../textures/render";
 import { SortableRows } from "./SketchTools";
+import { t } from "../i18n";
 
 export type MaskTool = "brush" | "erase" | "lassoAdd" | "lassoSub";
 export type PrintView = "composite" | "single" | "draft" | "mask";
@@ -76,10 +77,10 @@ function useThumbs(ids: string[], size = 112) {
 
 /** "Fine watercolor" → "Fine" when the category already says watercolor. */
 export function textureShortName(id: string) {
-  const t = textureById(id);
-  const cat = TEXTURE_CATEGORIES.find((c) => c.id === t.category)?.label ?? "";
-  const short = t.name.replace(new RegExp(`\\s+${cat}$`, "i"), "");
-  return short || t.name;
+  const tx = textureById(id);
+  const cat = TEXTURE_CATEGORIES.find((c) => c.id === tx.category)?.label ?? "";
+  const short = tx.name.replace(new RegExp(`\\s+${cat}$`, "i"), "");
+  return t(short || tx.name);
 }
 
 /* ------------------------------------------------------------------ */
@@ -114,16 +115,16 @@ export function PaperStrip({
     <div className="paper-strip">
       <div className="cat-row">
         <button type="button" className={`cat-pill${cat === "all" ? " is-active" : ""}`} onClick={() => setCat("all")}>
-          All
+          {t("All")}
         </button>
         {TEXTURE_CATEGORIES.map((c) => (
           <button key={c.id} type="button" className={`cat-pill${cat === c.id ? " is-active" : ""}`} onClick={() => setCat(c.id)}>
-            {c.label}
+            {t(c.label)}
           </button>
         ))}
       </div>
       <div className="thumb-row">
-        <button ref={adjustRef} type="button" className={`thumb-act${adjustOpen ? " is-active" : ""}`} aria-label="Adjust texture" onClick={onAdjust}>
+        <button ref={adjustRef} type="button" className={`thumb-act${adjustOpen ? " is-active" : ""}`} aria-label={t("Adjust texture")} onClick={onAdjust}>
           <Icon name="sliders" />
         </button>
         <div className="thumb-scroll">
@@ -133,14 +134,14 @@ export function PaperStrip({
               ref={t.id === value ? activeRef : undefined}
               type="button"
               className={`tex-thumb${t.id === value ? " is-active" : ""}`}
-              aria-label={t.name}
+              aria-label={textureShortName(t.id)}
               aria-pressed={t.id === value}
               style={{ backgroundImage: thumbs[t.id] ? `url(${thumbs[t.id]})` : undefined }}
               onClick={() => onPick(t.id)}
             />
           ))}
         </div>
-        <button type="button" className="thumb-act" aria-label="All papers" onClick={onAll}>
+        <button type="button" className="thumb-act" aria-label={t("All papers")} onClick={onAll}>
           <Icon name="gridAll" />
         </button>
       </div>
@@ -167,7 +168,7 @@ export function TexturePopover({
   return (
     <Popover open={open} onClose={onClose} bottom={PAPER_STRIP_H + 12} ignore={ignore}>
       <Slider
-        label="Strength"
+        label={t("Strength")}
         min={0}
         max={100}
         value={Math.round(texture.strength * 100)}
@@ -176,7 +177,7 @@ export function TexturePopover({
         onEnd={onEnd}
       />
       <Slider
-        label="Texture scale"
+        label={t("Texture scale")}
         min={100}
         max={400}
         value={Math.round(scale * 100)}
@@ -203,14 +204,14 @@ export function PaperSheet({
   const list = TEXTURES.filter((t) => cat === "all" || t.category === cat);
   const thumbs = useThumbs(open ? list.map((t) => t.id) : [], 160);
   return (
-    <Sheet open={open} title="Paper" onClose={onClose} studio height={470} headerRight={<span className="muted small" style={{ paddingRight: 8 }}>{TEXTURES.length}</span>}>
+    <Sheet open={open} title={t("Paper")} onClose={onClose} studio height={470} headerRight={<span className="muted small" style={{ paddingRight: 8 }}>{TEXTURES.length}</span>}>
       <div className="utabs" role="tablist">
         <button type="button" role="tab" aria-selected={cat === "all"} className={cat === "all" ? "is-active" : ""} onClick={() => setCat("all")}>
-          All
+          {t("All")}
         </button>
         {TEXTURE_CATEGORIES.map((c) => (
           <button key={c.id} type="button" role="tab" aria-selected={cat === c.id} className={cat === c.id ? "is-active" : ""} onClick={() => setCat(c.id)}>
-            {c.label}
+            {t(c.label)}
           </button>
         ))}
       </div>
@@ -240,17 +241,17 @@ export function PaperSheet({
 /* ------------------------------------------------------------------ */
 
 export const MASK_TOOLS: { id: MaskTool; label: string; icon: IconName }[] = [
-  { id: "brush", label: "Brush", icon: "brush2" },
-  { id: "erase", label: "Eraser", icon: "eraser2" },
-  { id: "lassoAdd", label: "Lasso add", icon: "lassoAdd" },
-  { id: "lassoSub", label: "Lasso subtract", icon: "lassoSub" },
+  { id: "brush", get label() { return t("Brush"); }, icon: "brush2" },
+  { id: "erase", get label() { return t("Eraser"); }, icon: "eraser2" },
+  { id: "lassoAdd", get label() { return t("Lasso add"); }, icon: "lassoAdd" },
+  { id: "lassoSub", get label() { return t("Lasso subtract"); }, icon: "lassoSub" },
 ];
 
 export const PRINT_VIEWS: { id: PrintView; label: string; icon: IconName }[] = [
-  { id: "composite", label: "Composite", icon: "viewComposite" },
-  { id: "single", label: "Single ink", icon: "viewSingle" },
-  { id: "mask", label: "Mask only", icon: "viewMask" },
-  { id: "draft", label: "Sketch", icon: "pen2" },
+  { id: "composite", get label() { return t("Composite"); }, icon: "viewComposite" },
+  { id: "single", get label() { return t("Single ink"); }, icon: "viewSingle" },
+  { id: "mask", get label() { return t("Mask only"); }, icon: "viewMask" },
+  { id: "draft", get label() { return t("Sketch"); }, icon: "pen2" },
 ];
 
 export function MaskSizePopover({
@@ -267,12 +268,12 @@ export function MaskSizePopover({
   ignore: RefObject<HTMLElement | null>[];
 }) {
   return (
-    <Popover open={open} onClose={onClose} title="Brush size" ignore={ignore}>
+    <Popover open={open} onClose={onClose} title={t("Brush size")} ignore={ignore}>
       <label className="slider-row">
         <span className="slider-icon">
           <Icon name="size" size={18} />
         </span>
-        <input type="range" min={6} max={160} value={size} aria-label="Brush size" onChange={(e) => onSize(Number(e.target.value))} />
+        <input type="range" min={6} max={160} value={size} aria-label={t("Brush size")} onChange={(e) => onSize(Number(e.target.value))} />
         <span className="slider-value">{size}</span>
       </label>
     </Popover>
@@ -293,10 +294,10 @@ export function InkColorPopover({
   ignore: RefObject<HTMLElement | null>[];
 }) {
   return (
-    <Popover open={open} onClose={onClose} title="Ink color" ignore={ignore}>
+    <Popover open={open} onClose={onClose} title={t("Ink color")} ignore={ignore}>
       <div className="palette">
         <ColorDots
-          colors={INK_PALETTE.map((c) => ({ value: c.color, label: c.name }))}
+          colors={INK_PALETTE.map((c) => ({ value: c.color, label: t(c.name) }))}
           value={color}
           onChange={(c) => {
             onPick(c);
@@ -324,13 +325,15 @@ function InkThumb({ layer, rt, empty }: { layer: PrintLayer; rt: ArtRuntime | nu
     ctx.fillRect(0, 0, c.width, c.height);
     ctx.globalCompositeOperation = "source-over";
   });
-  if (empty) return <span className="layer-thumb is-empty" aria-label="No area yet" />;
+  if (empty) return <span className="layer-thumb is-empty" aria-label={t("No area yet")} />;
   return <canvas ref={ref} className="layer-thumb" width={88} height={88} aria-hidden />;
 }
 
 /** Short ink name: drops the "Ink 3 · " prefix older layers were named with. */
 export function inkLabel(p: PrintLayer) {
-  return p.name.replace(/^Ink \d+ · /, "");
+  const n = p.name.replace(/^Ink \d+ · /, "");
+  // Default palette names are stored in English; show them in the UI language.
+  return n === "Custom" || INK_PALETTE.some((x) => x.name === n) ? t(n) : n;
 }
 
 export function InksSheet({
@@ -400,7 +403,7 @@ export function InksSheet({
       height={400}
       title={
         <>
-          Inks{" "}
+          {t("Inks")}{" "}
           <span className="muted" style={{ fontWeight: 400, fontSize: 13 }}>
             {layers.length}/{MAX_PRINT_LAYERS}
           </span>
@@ -409,10 +412,10 @@ export function InksSheet({
       headerRight={
         <span className="row" style={{ gap: 10 }}>
           <label className="toggle-label">
-            <span>Stencil</span>
+            <span>{t("Stencil")}</span>
             <input type="checkbox" role="switch" className="toggle" checked={enabled} onChange={(e) => onEnabled(e.target.checked)} />
           </label>
-          <button type="button" className="icon-btn is-filled" aria-label="New ink" disabled={full} onClick={onAdd}>
+          <button type="button" className="icon-btn is-filled" aria-label={t("New ink")} disabled={full} onClick={onAdd}>
             <Icon name="plus" />
           </button>
         </span>
@@ -420,8 +423,8 @@ export function InksSheet({
     >
       {layers.length === 0 ? (
         <div className="empty-state" style={{ padding: "28px 16px" }}>
-          <div className="empty-title">No inks yet</div>
-          <div className="empty-hint">Add up to {MAX_PRINT_LAYERS} inks, then paint where each one prints.</div>
+          <div className="empty-title">{t("No inks yet")}</div>
+          <div className="empty-hint">{t("Add up to {n} inks, then paint where each one prints.", { n: MAX_PRINT_LAYERS })}</div>
         </div>
       ) : (
         <SortableRows items={top} activeId={activeId} onSelect={onSelect} onMove={(id, to) => onReorder(id, layers.length - 1 - to)}>
@@ -457,7 +460,7 @@ export function InksSheet({
                   type="button"
                   className="icon-btn"
                   style={l.visible ? undefined : { color: "#bbb" }}
-                  aria-label={l.visible ? `Hide ${inkLabel(l)}` : `Show ${inkLabel(l)}`}
+                  aria-label={l.visible ? t("Hide {x}", { x: inkLabel(l) }) : t("Show {x}", { x: inkLabel(l) })}
                   onClick={(e) => {
                     e.stopPropagation();
                     onUpdate({ ...l, visible: !l.visible });
@@ -468,7 +471,7 @@ export function InksSheet({
                 <button
                   type="button"
                   className={`icon-btn${menuFor === l.id ? " is-pressed" : ""}`}
-                  aria-label={`More for ${inkLabel(l)}`}
+                  aria-label={t("More for {x}", { x: inkLabel(l) })}
                   onClick={(e) => {
                     e.stopPropagation();
                     menuRef.current = e.currentTarget;
@@ -491,14 +494,14 @@ export function InksSheet({
         items={
           menuInk
             ? [
-                { icon: "edit", label: "Rename", onSelect: () => setRenaming(menuInk.id) },
-                { icon: "palette2", label: "Ink color", onSelect: () => onInkColor(menuInk.id) },
+                { icon: "edit", get label() { return t("Rename"); }, onSelect: () => setRenaming(menuInk.id) },
+                { icon: "palette2", get label() { return t("Ink color"); }, onSelect: () => onInkColor(menuInk.id) },
                 "separator",
-                { icon: "layerArea", label: "Area from layer…", onSelect: () => setAreaFor(menuInk.id) },
-                { icon: "clearArea", label: "Clear area", disabled: empty.has(menuInk.id), onSelect: () => onClearMask(menuInk.id) },
+                { icon: "layerArea", get label() { return t("Area from layer…"); }, onSelect: () => setAreaFor(menuInk.id) },
+                { icon: "clearArea", get label() { return t("Clear area"); }, disabled: empty.has(menuInk.id), onSelect: () => onClearMask(menuInk.id) },
                 "separator",
-                { icon: "copy", label: "Duplicate", disabled: full, onSelect: () => onDuplicate(menuInk.id) },
-                { icon: "trash", label: "Delete", danger: true, onSelect: () => onDelete(menuInk.id) },
+                { icon: "copy", get label() { return t("Duplicate"); }, disabled: full, onSelect: () => onDuplicate(menuInk.id) },
+                { icon: "trash", get label() { return t("Delete"); }, danger: true, onSelect: () => onDelete(menuInk.id) },
               ]
             : []
         }
@@ -552,26 +555,26 @@ export function PrintParamsSheet({
       }
       headerRight={
         <span className="row" style={{ gap: 4 }}>
-          <button type="button" className="icon-btn" aria-label="Regenerate offset and grain" title="Regenerate offset and grain" onClick={() => onUpdate(regenerateMisregistration(l))}>
+          <button type="button" className="icon-btn" aria-label={t("Regenerate offset and grain")} title={t("Regenerate offset and grain")} onClick={() => onUpdate(regenerateMisregistration(l))}>
             <Icon name="dice" />
           </button>
-          <button type="button" className="icon-btn" aria-label="Reset offset" title="Reset offset" onClick={() => onUpdate(withOffset(l, 0, 0))}>
+          <button type="button" className="icon-btn" aria-label={t("Reset offset")} title={t("Reset offset")} onClick={() => onUpdate(withOffset(l, 0, 0))}>
             <Icon name="reset" />
           </button>
-          <button type="button" className="icon-btn" aria-label="Close" onClick={onClose}>
+          <button type="button" className="icon-btn" aria-label={t("Close")} onClick={onClose}>
             <Icon name="close" />
           </button>
         </span>
       }
     >
-      <Slider label="Density" min={0} max={100} value={Math.round(l.density * 100)} display={pct(l.density)} onChange={(v) => onUpdate({ ...l, density: v / 100 }, false)} onEnd={end} />
-      <Slider label="Show-through" min={0} max={100} value={Math.round(l.paperShow * 100)} display={pct(l.paperShow)} onChange={(v) => onUpdate({ ...l, paperShow: v / 100 }, false)} onEnd={end} />
+      <Slider label={t("Density")} min={0} max={100} value={Math.round(l.density * 100)} display={pct(l.density)} onChange={(v) => onUpdate({ ...l, density: v / 100 }, false)} onEnd={end} />
+      <Slider label={t("Show-through")} min={0} max={100} value={Math.round(l.paperShow * 100)} display={pct(l.paperShow)} onChange={(v) => onUpdate({ ...l, paperShow: v / 100 }, false)} onEnd={end} />
       <hr className="soft-hr" />
-      <Slider label="Grain" min={0} max={100} value={Math.round(l.grain * 100)} display={pct(l.grain)} onChange={(v) => onUpdate({ ...l, grain: v / 100 }, false)} onEnd={end} />
-      <Slider label="Unevenness" min={0} max={100} value={Math.round(l.unevenness * 100)} display={pct(l.unevenness)} onChange={(v) => onUpdate({ ...l, unevenness: v / 100 }, false)} onEnd={end} />
+      <Slider label={t("Grain")} min={0} max={100} value={Math.round(l.grain * 100)} display={pct(l.grain)} onChange={(v) => onUpdate({ ...l, grain: v / 100 }, false)} onEnd={end} />
+      <Slider label={t("Unevenness")} min={0} max={100} value={Math.round(l.unevenness * 100)} display={pct(l.unevenness)} onChange={(v) => onUpdate({ ...l, unevenness: v / 100 }, false)} onEnd={end} />
       <hr className="soft-hr" />
       <Slider
-        label="Offset"
+        label={t("Offset")}
         min={0}
         max={100}
         value={Math.round(offsetAmount(l) * 10000)}
@@ -580,7 +583,7 @@ export function PrintParamsSheet({
         onEnd={end}
       />
       <Slider
-        label="Angle"
+        label={t("Angle")}
         min={0}
         max={359}
         value={Math.round((offsetAngle(l) + 360) % 360)}
@@ -603,16 +606,16 @@ const MATERIAL_SWATCH: Record<StickerMaterial, string> = {
 };
 
 const MATERIAL_ORDER: { id: StickerMaterial; label: string }[] = [
-  { id: "white", label: "White" },
-  { id: "clear", label: "Clear" },
-  { id: "holo", label: "Holo" },
+  { id: "white", get label() { return t("White"); } },
+  { id: "clear", get label() { return t("Clear"); } },
+  { id: "holo", get label() { return t("Holo"); } },
 ];
 
 export const CUTS: { id: CropKind; label: string; icon: IconName }[] = [
-  { id: "contour", label: "Contour", icon: "cropContour" },
-  { id: "rect", label: "Rect", icon: "cropRect" },
-  { id: "circle", label: "Circle", icon: "cropCircle" },
-  { id: "manual", label: "Lasso", icon: "cropLasso" },
+  { id: "contour", get label() { return t("Contour"); }, icon: "cropContour" },
+  { id: "rect", get label() { return t("Rect"); }, icon: "cropRect" },
+  { id: "circle", get label() { return t("Circle"); }, icon: "cropCircle" },
+  { id: "manual", get label() { return t("Lasso"); }, icon: "cropLasso" },
 ];
 
 export function MaterialPopover({
@@ -634,19 +637,19 @@ export function MaterialPopover({
         {MATERIAL_ORDER.map((m) => (
           <button key={m.id} type="button" className={`tab${s.material === m.id ? " is-active" : ""}`} aria-pressed={s.material === m.id} onClick={() => onChange({ ...s, material: m.id })}>
             <i className="mat-swatch" style={{ background: MATERIAL_SWATCH[m.id] }} />
-            {m.label}
+            {t(m.label)}
           </button>
         ))}
       </div>
       {s.material === "holo" ? (
         <label className="slider-row" style={{ marginTop: 12 }} onPointerUp={() => onChange(s)}>
-          <span className="slider-text">Shine angle</span>
+          <span className="slider-text">{t("Shine angle")}</span>
           <input
             type="range"
             min={0}
             max={359}
             value={Math.round(s.holoAngle)}
-            aria-label="Shine angle"
+            aria-label={t("Shine angle")}
             onChange={(e) => onChange({ ...s, holoAngle: Number(e.target.value) }, true)}
           />
           <span className="slider-value">{Math.round(s.holoAngle)}°</span>
@@ -678,25 +681,25 @@ export function CutPopover({
         {CUTS.map((c) => (
           <button key={c.id} type="button" className={`tab${kind === c.id ? " is-active" : ""}`} aria-pressed={kind === c.id} onClick={() => onChange({ ...s, crop: { ...s.crop, kind: c.id } })}>
             <Icon name={c.icon} size={20} />
-            {c.label}
+            {t(c.label)}
           </button>
         ))}
       </div>
       <label className="slider-row" style={{ marginTop: 12, marginBottom: 0 }} onPointerUp={() => onChange(s)}>
-        <span className="slider-text">Border</span>
-        <input type="range" min={0} max={48} value={s.border} aria-label="Border" onChange={(e) => onChange({ ...s, border: Number(e.target.value) }, true)} />
+        <span className="slider-text">{t("Border")}</span>
+        <input type="range" min={0} max={48} value={s.border} aria-label={t("Border")} onChange={(e) => onChange({ ...s, border: Number(e.target.value) }, true)} />
         <span className="slider-value">{s.border}</span>
       </label>
       {kind === "rect" || kind === "circle" ? (
         <div className="row-between" style={{ marginTop: 8 }}>
-          <span className="muted small">Drag the box; drag its corner to resize.</span>
+          <span className="muted small">{t("Drag the box; drag its corner to resize.")}</span>
           <button type="button" className="btn btn-sm" onClick={onAutoFit}>
-            Auto-fit
+            {t("Auto-fit")}
           </button>
         </div>
       ) : kind === "manual" ? (
         <div className="muted small" style={{ marginTop: 8 }}>
-          {s.crop.poly.length >= 6 ? "Draw again to replace the outline." : "Draw around the part to keep."}
+          {s.crop.poly.length >= 6 ? t("Draw again to replace the outline.") : t("Draw around the part to keep.")}
         </div>
       ) : null}
     </Popover>

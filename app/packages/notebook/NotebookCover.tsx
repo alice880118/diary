@@ -1,55 +1,90 @@
+import { t } from "../i18n";
 import type { CSSProperties } from "react";
 import { coverOf } from "./covers";
 
+/**
+ * Paper notebook cover. `width` in px, or "fluid" to fill the parent's width
+ * (the label then scales with the cover). `bare` hides the name label.
+ */
 export function NotebookCover({
   cover,
   name,
   width = 130,
+  bare = false,
+  className,
   style,
 }: {
   cover: string;
   name: string;
-  width?: number;
+  width?: number | "fluid";
+  bare?: boolean;
+  className?: string;
   style?: CSSProperties;
 }) {
   const c = coverOf(cover);
+  const fluid = width === "fluid";
   return (
     <div
+      className={className}
       style={{
         position: "relative",
-        width,
-        height: width * 1.33,
+        width: fluid ? "100%" : width,
+        ...(fluid ? { aspectRatio: "1 / 1.33", containerType: "inline-size" } : { height: width * 1.33 }),
         borderRadius: "4px 12px 12px 4px",
-        boxShadow:
-          "inset 6px 0 0 rgba(0,0,0,0.12), inset 8px 0 6px rgba(255,255,255,0.12), 0 6px 14px rgba(40,30,20,0.22)",
+        boxShadow: c.image
+          ? "0 6px 14px rgba(40,30,20,0.18)"
+          : "inset 6px 0 0 rgba(0,0,0,0.12), inset 8px 0 6px rgba(255,255,255,0.12), 0 6px 14px rgba(40,30,20,0.18)",
         overflow: "hidden",
         ...c.style,
         ...style,
       }}
     >
+      {bare ? null : c.image ? (
+        <div
+          style={{
+            position: "absolute",
+            left: "26%",
+            right: "14%",
+            top: "56%",
+            transform: "translateY(-50%)",
+            textAlign: "center",
+            fontSize: fluid ? "clamp(9px, 9cqi, 13px)" : Math.max(8, Math.min(14, width * 0.09)),
+            fontWeight: 700,
+            textShadow: "0 0 3px #fff, 0 0 3px #fff",
+            color: c.ink,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {name || t("Untitled")}
+        </div>
+      ) : (
+        <div
+          style={{
+            position: "absolute",
+            left: "14%",
+            right: "9%",
+            top: "22%",
+            padding: fluid ? "7% 4px" : "8px 6px",
+            background: "rgba(255,253,248,0.92)",
+            borderRadius: 4,
+            textAlign: "center",
+            fontSize: fluid ? "clamp(10px, 10.5cqi, 14px)" : Math.max(10, Math.min(16, width * 0.105)),
+            fontWeight: 600,
+            color: "#3a332c",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.12)",
+          }}
+        >
+          {name || t("Untitled")}
+        </div>
+      )}
       <div
         style={{
-          position: "absolute",
-          left: "16%",
-          right: "10%",
-          top: "22%",
-          padding: "8px 6px",
-          background: "rgba(255,253,248,0.9)",
-          borderRadius: 4,
-          textAlign: "center",
-          fontSize: Math.max(11, width / 9),
-          fontWeight: 600,
-          color: "#3a332c",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-          boxShadow: "0 1px 2px rgba(0,0,0,0.12)",
-        }}
-      >
-        {name || "Untitled"}
-      </div>
-      <div
-        style={{
+          display: c.image ? "none" : undefined,
           position: "absolute",
           right: 0,
           top: "12%",

@@ -1,13 +1,14 @@
 import { memo, useId } from "react";
 import { formatDate, weekdayOf } from "../db/id";
 import { PAGE_H, PAGE_W, type PageStyle } from "../db/types";
+import { t } from "../i18n";
 
 export const PAGE_STYLES: { id: PageStyle; label: string }[] = [
-  { id: "lined", label: "Lined" },
-  { id: "blank", label: "Blank" },
-  { id: "dot", label: "Dot grid" },
-  { id: "grid", label: "Grid" },
-  { id: "dated", label: "Dated" },
+  { id: "lined", get label() { return t("Lined"); } },
+  { id: "blank", get label() { return t("Blank"); } },
+  { id: "dot", get label() { return t("Dot grid"); } },
+  { id: "grid", get label() { return t("Grid"); } },
+  { id: "dated", get label() { return t("Dated"); } },
 ];
 
 const LINE = "#c9d6e6";
@@ -50,10 +51,6 @@ export const PageBackground = memo(function PageBackground({
       aria-hidden
     >
       <defs>
-        <radialGradient id={`v${uid}`} cx="50%" cy="45%" r="75%">
-          <stop offset="70%" stopColor="#fffdf8" />
-          <stop offset="100%" stopColor="#f3ecdf" />
-        </radialGradient>
         <pattern id={`d${uid}`} width={40} height={40} patternUnits="userSpaceOnUse">
           <circle cx={20} cy={20} r={2.2} fill={DOT} />
         </pattern>
@@ -61,7 +58,7 @@ export const PageBackground = memo(function PageBackground({
           <path d="M40 0H0V40" fill="none" stroke="#d6dde6" strokeWidth={1.2} />
         </pattern>
       </defs>
-      <rect width={PAGE_W} height={PAGE_H} fill={`url(#v${uid})`} />
+      <rect width={PAGE_W} height={PAGE_H} fill="#ffffff" />
       {style === "lined" ? <Lines from={120} gap={48} margin /> : null}
       {style === "dot" ? <rect width={PAGE_W} height={PAGE_H} fill={`url(#d${uid})`} /> : null}
       {style === "grid" ? <rect width={PAGE_W} height={PAGE_H} fill={`url(#g${uid})`} /> : null}
@@ -84,7 +81,7 @@ function DatedHeader({ date }: { date: string }) {
         {weekdayOf(date)}
       </text>
       <text x={430} y={78} fontSize={22} fill="#9a8f82">
-        Title
+        {t("Title")}
       </text>
       <line x1={430} x2={850} y1={122} y2={122} stroke="#bfb3a3" strokeWidth={2} />
       <line x1={40} x2={860} y1={DATED_HEADER_H - 20} y2={DATED_HEADER_H - 20} stroke="#3a332c" strokeWidth={2.5} />

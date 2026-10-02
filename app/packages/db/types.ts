@@ -123,7 +123,13 @@ export interface TextObject extends ObjectBase {
   size: number;
   color: string;
   align: "left" | "center" | "right";
+  /** Font weight; absent = 400 (regular). */
+  weight?: TextWeight;
+  /** Box hugs the text width (new texts); absent = fixed width as stored. */
+  autoW?: boolean;
 }
+
+export type TextWeight = 400 | 500 | 600 | 700;
 
 export interface ImageObject extends ObjectBase {
   type: "image";
@@ -215,6 +221,30 @@ export interface Page {
   deletedAt: number | null;
 }
 
+export interface MonthGoal {
+  id: string;
+  /** Up to 30 characters; blank goals aren't stored. */
+  text: string;
+  done: boolean;
+  order: number;
+  /** Month it was carried over from ("YYYY-MM"), for "from Sep". */
+  carriedFrom?: string | null;
+  /** Month it was carried on to; it no longer counts as unfinished here. */
+  movedTo?: string | null;
+}
+
+export type CoverShape = NoteShape | "polaroid";
+export type CoverFix = "tape" | "pin" | "none";
+
+/** Month cover look; absent = polaroid, cream photo area, pink stripe tape. */
+export interface MonthCover {
+  paper: string;
+  shape: CoverShape;
+  fix: CoverFix;
+  tapePattern: TapePattern;
+  tapeColor: string;
+}
+
 export interface MonthlyOverview {
   /** `${notebookId}:${YYYY-MM}` */
   key: string;
@@ -222,6 +252,12 @@ export interface MonthlyOverview {
   ym: string;
   highlight: string | null;
   sticker: StickerSnap | null;
+  /** Optional (added with the calendar redesign); absent = no goals. */
+  goals?: MonthGoal[];
+  /** Optional; absent = default cover. */
+  cover?: MonthCover;
+  /** Set once unfinished goals from the previous month were carried in. */
+  carried?: boolean;
   updatedAt: number;
 }
 
@@ -359,4 +395,56 @@ export interface AppSettings {
   motion: MotionPref;
   onboarded: boolean;
   lastBackupAt: number | null;
+  /** First day of the week in the month calendar: 1 = Monday (default), 0 = Sunday. */
+  weekStart?: 0 | 1;
+  /** Background color of the diary screens (bookshelf, year, month); absent = journal cream. */
+  diaryBg?: string;
+}
+
+/* ------------------------------------------------------------------ */
+/* Home board                                                          */
+/* ------------------------------------------------------------------ */
+
+/** Board surface in units; matches the Figma "IG / home" artboard (402 x 874). */
+export const BOARD_W = 402;
+export const BOARD_H = 874;
+
+export type BoardTexture = "smooth" | "grain" | "paper";
+
+export interface BoardItem {
+  id: string;
+  /** "doodle" = a drawing made on the board (optional, added later). */
+  source: "preset" | "sticker" | "doodle";
+  /** Built-in sticker id when source is "preset". */
+  presetId?: string;
+  /** Doodle strokes in their own box (dw x dh board units) when source is "doodle". */
+  strokes?: Stroke[];
+  dw?: number;
+  dh?: number;
+  /** Rendered sticker version when source is "sticker" (library deletes don't affect it). */
+  snap?: StickerSnap;
+  /** Center and width as fractions of the board width (0..1). */
+  x: number;
+  y: number;
+  w: number;
+  /** Degrees, clockwise. */
+  rot: number;
+  z: number;
+}
+
+/**
+ * Stored in the settings store under key "home". Absent until the first
+ * edit; readers fill the default board.
+ */
+/** A user-picked fill: one color or a two-stop linear gradient (angle in CSS degrees). */
+export type ColorFill = { kind: "solid"; color: string } | { kind: "gradient"; from: string; to: string; angle: number };
+
+export interface HomeBoard {
+  key: "home";
+  /** `color` is a preset id, or "custom" to use `custom` (optional, added later). */
+  background: { color: string; texture: BoardTexture; shapes: boolean; custom?: ColorFill };
+  items: BoardItem[];
+  /** Doodles in board units (BOARD_W wide), drawn beneath the stickers. */
+  strokes: Stroke[];
+  updatedAt: number;
 }

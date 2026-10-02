@@ -17,6 +17,7 @@ import { Icon, type IconName } from "../shell/Icon";
 import { Popover } from "../shell/Popover";
 import { Sheet } from "../shell/Sheet";
 import { ColorButton, PalettePopover, SKETCH_COLORS, ToolButton } from "./SketchTools";
+import { t } from "../i18n";
 
 export type DrawTool = "brush" | "eraser" | "shape" | "select";
 
@@ -189,7 +190,7 @@ function Segmented<T extends string>({ value, options, onChange, label }: { valu
     <div className="tabs" role="radiogroup" aria-label={label}>
       {options.map((o) => (
         <button key={o.id} type="button" role="radio" aria-checked={value === o.id} className={`tab${value === o.id ? " is-active" : ""}`} onClick={() => onChange(o.id)}>
-          {o.label}
+          {t(o.label)}
         </button>
       ))}
     </div>
@@ -235,17 +236,17 @@ export function BrushSettingsSheet({
 }) {
   const b = prefs.brush;
   return (
-    <Sheet open={open} title="Brush" onClose={onClose} studio height={560}>
-      <div className="brush-grid" role="radiogroup" aria-label="Brush type">
+    <Sheet open={open} title={t("Brush")} onClose={onClose} studio height={560}>
+      <div className="brush-grid" role="radiogroup" aria-label={t("Brush type")}>
         {BRUSHES.map((d) => (
           <button key={d.id} type="button" role="radio" aria-checked={b === d.id} className={`brush-cell${b === d.id ? " is-active" : ""}`} onClick={() => onBrush(d.id)}>
             <BrushSample brush={d.id} color={color === "#ffffff" ? "#1b1b1b" : color} width={d.textured ? 14 : 6} texture={prefs.texture} w={92} h={30} />
-            <span>{d.label}</span>
+            <span>{t(d.label)}</span>
           </button>
         ))}
       </div>
       <Slider
-        label="Size"
+        label={t("Size")}
         icon="size"
         min={1}
         max={120}
@@ -254,7 +255,7 @@ export function BrushSettingsSheet({
         onChange={(v) => onPrefs({ sizes: { ...prefs.sizes, [b]: v } })}
       />
       <Slider
-        label="Opacity"
+        label={t("Opacity")}
         icon="opacity"
         min={10}
         max={100}
@@ -263,15 +264,15 @@ export function BrushSettingsSheet({
         onChange={(v) => onPrefs({ opacity: { ...prefs.opacity, [b]: v / 100 } })}
       />
       {isTextured(b) ? (
-        <Slider label="Texture" min={0} max={100} value={Math.round(prefs.texture * 100)} display={`${Math.round(prefs.texture * 100)}%`} onChange={(v) => onPrefs({ texture: v / 100 })} />
+        <Slider label={t("Texture")} min={0} max={100} value={Math.round(prefs.texture * 100)} display={`${Math.round(prefs.texture * 100)}%`} onChange={(v) => onPrefs({ texture: v / 100 })} />
       ) : null}
-      <div className="section-title">Stabilizer</div>
-      <Segmented label="Stabilizer" value={prefs.stabilizer} options={STABILIZER_LEVELS.map((l) => ({ id: l, label: cap(l) }))} onChange={(v) => onPrefs({ stabilizer: v })} />
-      <div className="section-title">Auto smooth</div>
-      <Segmented label="Auto smooth" value={prefs.smooth} options={SMOOTH_LEVELS.map((l) => ({ id: l, label: cap(l) }))} onChange={(v) => onPrefs({ smooth: v })} />
+      <div className="section-title">{t("Stabilizer")}</div>
+      <Segmented label={t("Stabilizer")} value={prefs.stabilizer} options={STABILIZER_LEVELS.map((l) => ({ id: l, label: cap(l) }))} onChange={(v) => onPrefs({ stabilizer: v })} />
+      <div className="section-title">{t("Auto smooth")}</div>
+      <Segmented label={t("Auto smooth")} value={prefs.smooth} options={SMOOTH_LEVELS.map((l) => ({ id: l, label: cap(l) }))} onChange={(v) => onPrefs({ smooth: v })} />
       <label className="row-between" style={{ marginTop: 18 }}>
         <span className="section-title" style={{ margin: 0 }}>
-          Hold to perfect
+          {t("Hold to perfect")}
         </span>
         <input type="checkbox" role="switch" className="toggle" checked={prefs.hold} onChange={(e) => onPrefs({ hold: e.target.checked })} />
       </label>
@@ -302,11 +303,11 @@ export function SizePopover({
 }) {
   const d = Math.max(2, Math.min(56, value));
   return (
-    <Popover open={open} onClose={onClose} title="Size" ignore={ignore} bottom={bottom}>
+    <Popover open={open} onClose={onClose} title={t("Size")} ignore={ignore} bottom={bottom}>
       <div className="size-preview">
         <span style={{ width: d, height: d, background: color }} />
       </div>
-      <Slider label="Size" icon="size" min={1} max={max} value={value} display={String(value)} onChange={onChange} onEnd={onEnd} />
+      <Slider label={t("Size")} icon="size" min={1} max={max} value={value} display={String(value)} onChange={onChange} onEnd={onEnd} />
     </Popover>
   );
 }
@@ -328,22 +329,22 @@ export function ShapePickerPopover({
 }) {
   return (
     <Popover open={open} onClose={onClose} ignore={ignore} bottom={bottom}>
-      <div className="shape-grid" role="radiogroup" aria-label="Shape">
-        {SHAPE_TYPES.map((t) => (
+      <div className="shape-grid" role="radiogroup" aria-label={t("Shape")}>
+        {SHAPE_TYPES.map((sh) => (
           <button
-            key={t.id}
+            key={sh.id}
             type="button"
             role="radio"
-            aria-checked={value === t.id}
-            aria-label={t.label}
-            title={t.label}
-            className={`shape-cell${value === t.id ? " is-active" : ""}`}
+            aria-checked={value === sh.id}
+            aria-label={t(sh.label)}
+            title={t(sh.label)}
+            className={`shape-cell${value === sh.id ? " is-active" : ""}`}
             onClick={() => {
-              onPick(t.id);
+              onPick(sh.id);
               onClose();
             }}
           >
-            <ShapeIcon type={t.id} />
+            <ShapeIcon type={sh.id} />
           </button>
         ))}
       </div>
@@ -381,7 +382,7 @@ export function FillPopover({
     <Popover open={open} onClose={onClose} ignore={ignore} bottom={bottom}>
       <div className="fill-scroll">
         <label className="row-between">
-          <span className="field-label">Fill</span>
+          <span className="field-label">{t("Fill")}</span>
           <input
             type="checkbox"
             role="switch"
@@ -397,7 +398,7 @@ export function FillPopover({
         ) : null}
         <hr className="soft-hr" />
         <label className="row-between">
-          <span className="field-label">Stroke</span>
+          <span className="field-label">{t("Stroke")}</span>
           <input type="checkbox" role="switch" className="toggle" checked={state.outline} onChange={(e) => onChange({ outline: e.target.checked })} />
         </label>
         {state.outline ? (
@@ -405,11 +406,11 @@ export function FillPopover({
             <div className="palette is-compact" style={{ marginTop: 8 }}>
               <ColorDots colors={colors} value={state.strokeColor} onChange={(c) => onChange({ strokeColor: c })} />
             </div>
-            <Slider label="Stroke width" icon="size" min={1} max={120} value={state.width} display={String(state.width)} onChange={(v) => onChange({ width: v }, true)} onEnd={() => onChange({}, false)} />
+            <Slider label={t("Stroke width")} icon="size" min={1} max={120} value={state.width} display={String(state.width)} onChange={(v) => onChange({ width: v }, true)} onEnd={() => onChange({}, false)} />
             <div className="chip-row">
               {BRUSHES.map((d) => (
                 <button key={d.id} type="button" className={`chip${state.brush === d.id ? " is-active" : ""}`} onClick={() => onChange({ brush: d.id })}>
-                  {d.label}
+                  {t(d.label)}
                 </button>
               ))}
             </div>
@@ -504,30 +505,30 @@ export function DrawBar({
         brush: prefs.brush,
       };
 
-  const toolBtn = (t: DrawTool) => {
+  const toolBtn = (tl: DrawTool) => {
     const meta: Record<DrawTool, { icon: IconName; label: string }> = {
-      brush: { icon: BRUSH_ICON[prefs.brush], label: `Brush: ${BRUSHES.find((b) => b.id === prefs.brush)?.label}` },
-      eraser: { icon: "eraser2", label: "Eraser" },
-      shape: { icon: "cropRect", label: "Shape" },
-      select: { icon: "select", label: "Select" },
+      brush: { icon: BRUSH_ICON[prefs.brush], label: `${t("Brush")}: ${t(BRUSHES.find((b) => b.id === prefs.brush)?.label ?? "")}` },
+      eraser: { icon: "eraser2", get label() { return t("Eraser"); } },
+      shape: { icon: "cropRect", get label() { return t("Shape"); } },
+      select: { icon: "select", get label() { return t("Select"); } },
     };
     return (
       <ToolButton
-        key={t}
-        icon={meta[t].icon}
-        iconNode={t === "shape" ? <ShapeIcon type={prefs.shape} /> : undefined}
-        label={meta[t].label}
-        active={tool === t}
+        key={tl}
+        icon={meta[tl].icon}
+        iconNode={tl === "shape" ? <ShapeIcon type={prefs.shape} /> : undefined}
+        label={t(meta[tl].label)}
+        active={tool === tl}
         btnRef={(el) => {
-          refs.current[t] = el;
+          refs.current[tl] = el;
         }}
         onClick={() => {
-          if (t === "brush" && tool === "brush") setBrushOpen(true);
-          else if (t === "eraser" && tool === "eraser") setPop(pop === "size" ? null : "size");
-          else if (t === "shape" && tool === "shape") setPop(pop === "shapes" ? null : "shapes");
+          if (tl === "brush" && tool === "brush") setBrushOpen(true);
+          else if (tl === "eraser" && tool === "eraser") setPop(pop === "size" ? null : "size");
+          else if (tl === "shape" && tool === "shape") setPop(pop === "shapes" ? null : "shapes");
           else {
-            onTool(t);
-            setPop(t === "shape" ? "shapes" : null);
+            onTool(tl);
+            setPop(tl === "shape" ? "shapes" : null);
           }
         }}
       />
@@ -543,11 +544,11 @@ export function DrawBar({
       <div className="studio-right" style={{ gap: 2 }}>
         <ColorButton color={shownColor} disabled={erase} btnRef={colorRef} onClick={() => setPop(pop === "palette" ? null : "palette")} />
         {fillMode ? (
-          <button ref={sizeRef} type="button" className="st-tool" aria-label="Fill and stroke" title="Fill and stroke" onClick={() => setPop(pop === "fill" ? null : "fill")}>
+          <button ref={sizeRef} type="button" className="st-tool" aria-label={t("Fill and stroke")} title={t("Fill and stroke")} onClick={() => setPop(pop === "fill" ? null : "fill")}>
             <span className="fill-glyph" style={{ background: fillState.fill.kind === "solid" ? fillState.fillColor : "transparent", borderColor: fillState.outline ? fillState.strokeColor : "#c8c8c8" }} />
           </button>
         ) : (
-          <button ref={sizeRef} type="button" className="st-tool" aria-label={`Size ${size}`} title="Size" onClick={() => setPop(pop === "size" ? null : "size")}>
+          <button ref={sizeRef} type="button" className="st-tool" aria-label={`Size ${size}`} title={t("Size")} onClick={() => setPop(pop === "size" ? null : "size")}>
             <span className="size-glyph">
               <span style={{ width: Math.max(3, Math.min(20, size / 2.5)), height: Math.max(3, Math.min(20, size / 2.5)) }} />
             </span>

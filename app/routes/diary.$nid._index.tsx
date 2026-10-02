@@ -11,11 +11,13 @@ import {
   pagesInMonth,
 } from "~/packages/db/repo";
 import { DateSheet } from "~/packages/notebook/DateSheet";
-import { MonthCard } from "~/packages/notebook/MonthCard";
-import { computeMonthPreview } from "~/packages/notebook/monthPreview";
+import { ThisMonthCard, YearMonthCard, rich } from "~/packages/notebook/YearCards";
+import { stickerCount } from "~/packages/notebook/monthPreview";
+import "~/packages/notebook/calendar.css";
 import { Icon } from "~/packages/shell/Icon";
 import { AppHeader, BackButton, EmptyState, Screen } from "~/packages/shell/Layout";
 import { useToast } from "~/packages/shell/toast";
+import { t, tn } from "~/packages/i18n";
 
 export default function MonthOverview() {
   const { nid = "" } = useParams();
@@ -41,13 +43,12 @@ export default function MonthOverview() {
   const nb = data.data?.nb;
   if (!nb || nb.deletedAt) {
     return (
-      <Screen header={<AppHeader title="Notebook not found" left={<BackButton to="/diary" />} />}>
-        <EmptyState title="This notebook doesn't exist or is in the trash" hint="You can restore it from Settings → Trash." />
+      <Screen header={<AppHeader title={t("Notebook not found")} left={<BackButton to="/diary" />} />}>
+        <EmptyState title={t("This notebook doesn't exist or is in the trash")} hint={t("You can restore it from Settings → Trash.")} />
       </Screen>
     );
   }
   const { pages, months } = data.data!;
-  const years = Array.from(new Set([thisYear, ...pages.map((p) => Number(p.date.slice(0, 4)))])).sort();
   const yearPages = pages.filter((p) => p.date.startsWith(`${year}-`));
 
   const addPage = async (date: string) => {
@@ -60,82 +61,73 @@ export default function MonthOverview() {
     }
   };
 
+  const today = todayLocal();
+  const curYm = ymOf(today);
+  const showMain = curYm.startsWith(`${year}-`);
+  const days = new Set(yearPages.map((p) => p.date)).size;
+  const go = (ym: string) => navigate(`/diary/${nid}/m/${ym}`);
+
   return (
     <Screen
+      bodyClassName="journal-bg"
       header={
         <AppHeader
           title={nb.name}
-          subtitle={`${year} · ${yearPages.length} ${yearPages.length === 1 ? "page" : "pages"}`}
+          subtitle={`${year} · ${tn(yearPages.length, "{n} page", "{n} pages")}`}
           left={<BackButton to="/diary" />}
           right={
-            <button type="button" className="icon-btn" aria-label="New entry" onClick={() => setAdding(true)}>
+            <button type="button" className="icon-btn" aria-label={t("New entry")} onClick={() => setAdding(true)}>
               <Icon name="plus" />
             </button>
           }
         />
       }
     >
-      <div className="pad">
-        <div className="row-between" style={{ marginBottom: 12 }}>
-          <button
-            type="button"
-            className="icon-btn"
-            aria-label="Previous year"
-            onClick={() => setParams({ y: String(year - 1) })}
-          >
-            <Icon name="chevronLeft" />
-          </button>
-          <div className="hscroll" style={{ flex: 1, justifyContent: "center" }}>
-            {years.map((y) => (
-              <button
-                key={y}
-                type="button"
-                className={`chip${y === year ? " is-active" : ""}`}
-                onClick={() => setParams({ y: String(y) })}
-              >
-                {y}
-              </button>
-            ))}
+      <div className="pad cal-body">
+        <div className="cal-title" style={{ alignItems: "center" }}>
+          <div className="cal-h1">{year}</div>
+          <div className="float-ctrl">
+            <button type="button" className="icon-btn" aria-label={t("Previous year")} onClick={() => setParams({ y: String(year - 1) })}>
+              <Icon name="chevronLeft" />
+            </button>
+            <button type="button" className="icon-btn" aria-label={t("Next year")} onClick={() => setParams({ y: String(year + 1) })}>
+              <Icon name="chevronRight" />
+            </button>
           </div>
-          <button
-            type="button"
-            className="icon-btn"
-            aria-label="Next year"
-            onClick={() => setParams({ y: String(year + 1) })}
-          >
-            <Icon name="chevronRight" />
-          </button>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+        <div className="cat-row">
+          <span className="cat">{rich(tn(days, "{n} day", "{n} days"))}</span>
+          <span className="cat">{rich(tn(yearPages.length, "{n} page", "{n} pages"))}</span>
+          <span className="cat">{rich(tn(stickerCount(yearPages), "{n} sticker", "{n} stickers"))}</span>
+        </div>
+
+        {showMain ? <ThisMonthCard ym={curYm} pages={pagesInMonth(pages, curYm)} overview={months.find((m) => m.ym === curYm)} onOpen={() => go(curYm)} /> : null}
+
+        <div className="year-grid">
           {Array.from({ length: 12 }, (_, i) => {
             const ym = `${year}-${String(i + 1).padStart(2, "0")}`;
             const monthPages = pagesInMonth(pages, ym);
             const ov = months.find((m) => m.ym === ym);
-            const preview = computeMonthPreview(ym, monthPages, ov);
             return (
-              <MonthCard
+              <YearMonthCard
                 key={ym}
-                month={i + 1}
-                preview={preview}
-                onOpen={() => navigate(`/diary/${nid}/m/${ym}`)}
+                ym={ym}
+                index={i}
+                pages={monthPages}
+                overview={ov}
+                current={ym === curYm}
+                future={ym > curYm}
+                onOpen={() => go(ym)}
               />
             );
           })}
         </div>
-        <button
-          type="button"
-          className="btn btn-primary btn-block"
-          style={{ marginTop: 18 }}
-          onClick={() => setAdding(true)}
-        >
-          <Icon name="plus" size={18} /> New entry
-        </button>
       </div>
       <DateSheet
         open={adding}
-        title="New entry"
+        title={t("New entry")}
         initial={todayLocal()}
-        confirmText="Create and edit"
+        confirmText={t("Create and edit")}
         onClose={() => setAdding(false)}
         onConfirm={(d) => {
           void addPage(d);

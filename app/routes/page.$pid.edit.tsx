@@ -4,6 +4,7 @@ import { getPage, listPages } from "~/packages/db/repo";
 import type { Page } from "~/packages/db/types";
 import { PageEditor } from "~/packages/editor/PageEditor";
 import { AppHeader, BackButton, EmptyState, Screen } from "~/packages/shell/Layout";
+import { t } from "~/packages/i18n";
 
 export default function EditPage() {
   const { pid = "" } = useParams();
@@ -27,12 +28,12 @@ export default function EditPage() {
   }, [pid]);
 
   if (!state) {
-    return <Screen header={<AppHeader title="Loading…" />}>{null}</Screen>;
+    return <Screen header={<AppHeader title={t("Loading…")} />}>{null}</Screen>;
   }
   if (!state.page || state.page.deletedAt) {
     return (
-      <Screen header={<AppHeader title="Page not found" left={<BackButton to="/diary" />} />}>
-        <EmptyState title="This page doesn't exist or is in the trash" />
+      <Screen header={<AppHeader title={t("Page not found")} left={<BackButton to="/diary" />} />}>
+        <EmptyState title={t("This page doesn't exist or is in the trash")} />
       </Screen>
     );
   }

@@ -9,11 +9,12 @@ import {
   reflectMatrix,
   type PeelState,
 } from "./geometry";
+import { t } from "../i18n";
 
 export const MATERIALS: { id: StickerMaterial; label: string; hint: string }[] = [
-  { id: "clear", label: "Clear", hint: "Unprinted areas show the paper beneath, with a subtle film sheen." },
-  { id: "holo", label: "Holo", hint: "Opaque iridescent base that shimmers as you drag." },
-  { id: "white", label: "White", hint: "Opaque white backing inside the cut line." },
+  { id: "clear", get label() { return t("Clear"); }, get hint() { return t("Unprinted areas show the paper beneath, with a subtle film sheen."); } },
+  { id: "holo", get label() { return t("Holo"); }, get hint() { return t("Opaque iridescent base that shimmers as you drag."); } },
+  { id: "white", get label() { return t("White"); }, get hint() { return t("Opaque white backing inside the cut line."); } },
 ];
 
 export const HOLO_ANGLE_DEG = 115;
@@ -180,7 +181,7 @@ export function StickerArt({
   if (art.missing || shape.missing) {
     return (
       <div className="sticker-missing" style={{ ...FILL }}>
-        Missing asset
+        {t("Missing asset")}
       </div>
     );
   }

@@ -1,3 +1,4 @@
+import { t, tn } from "../i18n";
 import { emitChange } from "./events";
 import { formatDate, newId, todayLocal, ymOf } from "./id";
 import {
@@ -21,6 +22,9 @@ import {
   type Artwork,
   type Asset,
   type AssetRole,
+  type HomeBoard,
+  type MonthCover,
+  type MonthGoal,
   type MonthlyOverview,
   type Notebook,
   type Page,
@@ -50,6 +54,29 @@ export async function updateSettings(patch: Partial<AppSettings>) {
   const cur = await getSettings();
   await putOne("settings", { ...cur, ...patch, key: "app" });
   emitChange();
+}
+
+/* ------------------------------------------------------------------ */
+/* Home board                                                          */
+/* ------------------------------------------------------------------ */
+
+export const DEFAULT_BOARD_BG: HomeBoard["background"] = { color: "blush", texture: "grain", shapes: true };
+
+/** The stored board, or null before the first edit. */
+export async function getHomeBoard(): Promise<HomeBoard | null> {
+  const b = await getOne<HomeBoard>("settings", "home");
+  if (!b) return null;
+  return {
+    key: "home",
+    background: { ...DEFAULT_BOARD_BG, ...(b.background ?? {}) },
+    items: Array.isArray(b.items) ? b.items : [],
+    strokes: Array.isArray(b.strokes) ? b.strokes : [],
+    updatedAt: b.updatedAt ?? 0,
+  };
+}
+
+export async function saveHomeBoard(b: HomeBoard) {
+  await putOne("settings", { ...b, key: "home", updatedAt: Date.now() });
 }
 
 /* ------------------------------------------------------------------ */
@@ -398,6 +425,122 @@ export async function saveMonth(m: MonthlyOverview) {
   emitChange();
 }
 
+export const MAX_GOALS = 5;
+export const GOAL_MAX_LEN = 30;
+
+export const DEFAULT_COVER: MonthCover = {
+  paper: "#fdfaf0",
+  shape: "polaroid",
+  fix: "tape",
+  tapePattern: "stripe",
+  tapeColor: "#f2a7bd",
+};
+
+export function coverOfMonth(m: MonthlyOverview | undefined): MonthCover {
+  return { ...DEFAULT_COVER, ...(m?.cover ?? {}) };
+}
+
+export function goalsOf(m: MonthlyOverview | undefined): MonthGoal[] {
+  return [...(m?.goals ?? [])].sort((a, b) => a.order - b.order);
+}
+
+export function prevYm(ym: string) {
+  const [y, mo] = ym.split("-").map(Number);
+  const d = new Date(y, mo - 2, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/** Applies a change to one month record (created if missing) in a transaction. */
+export async function updateMonth(notebookId: string, ym: string, fn: (m: MonthlyOverview) => MonthlyOverview) {
+  await withTx(["months"], "readwrite", async (tx) => {
+    const key = monthKey(notebookId, ym);
+    const cur = (await txGet<MonthlyOverview>(tx, "months", key)) ?? {
+      key,
+      notebookId,
+      ym,
+      highlight: null,
+      sticker: null,
+      updatedAt: 0,
+    };
+    await txPut(tx, "months", { ...fn(cur), key, updatedAt: Date.now() });
+  });
+  emitChange();
+}
+
+/**
+ * Saves the goal list from the edit sheet. Goals carried in from the previous
+ * month that were deleted here go back to unfinished there.
+ */
+export async function saveGoals(notebookId: string, ym: string, goals: MonthGoal[]) {
+  await withTx(["months"], "readwrite", async (tx) => {
+    const key = monthKey(notebookId, ym);
+    const cur = await txGet<MonthlyOverview>(tx, "months", key);
+    const kept = new Set(goals.map((g) => g.id));
+    const dropped = (cur?.goals ?? []).filter((g) => !kept.has(g.id) && g.carriedFrom);
+    const clean = goals
+      .map((g) => ({ ...g, text: g.text.trim().slice(0, GOAL_MAX_LEN) }))
+      .filter((g) => g.text)
+      .slice(0, MAX_GOALS)
+      .map((g, i) => ({ ...g, order: i }));
+    await txPut(tx, "months", {
+      ...(cur ?? { key, notebookId, ym, highlight: null, sticker: null }),
+      key,
+      goals: clean,
+      updatedAt: Date.now(),
+    });
+    for (const g of dropped) {
+      const fromKey = monthKey(notebookId, g.carriedFrom!);
+      const from = await txGet<MonthlyOverview>(tx, "months", fromKey);
+      if (!from?.goals) continue;
+      await txPut(tx, "months", {
+        ...from,
+        goals: from.goals.map((x) => (x.id === g.id && x.movedTo === ym ? { ...x, movedTo: null } : x)),
+        updatedAt: Date.now(),
+      });
+    }
+  });
+  emitChange();
+}
+
+/**
+ * First visit to the current month: copies last month's unfinished goals that
+ * weren't carried yet, up to the limit. Runs once per month; returns how many
+ * were carried.
+ */
+export async function carryOverGoals(notebookId: string, ym: string): Promise<number> {
+  let carried = 0;
+  await withTx(["months"], "readwrite", async (tx) => {
+    const key = monthKey(notebookId, ym);
+    const cur = await txGet<MonthlyOverview>(tx, "months", key);
+    if (cur?.carried) return;
+    const from = prevYm(ym);
+    const prev = await txGet<MonthlyOverview>(tx, "months", monthKey(notebookId, from));
+    const open = goalsOf(prev).filter((g) => !g.done && !g.movedTo);
+    if (!prev || !open.length) return;
+    const goals = goalsOf(cur);
+    const ids = new Set(goals.map((g) => g.id));
+    const take = open.filter((g) => !ids.has(g.id)).slice(0, Math.max(0, MAX_GOALS - goals.length));
+    if (!take.length) return;
+    const next = [...goals, ...take.map((g) => ({ ...g, done: false, carriedFrom: from, movedTo: null }))].map((g, i) => ({ ...g, order: i }));
+    await txPut(tx, "months", {
+      ...(cur ?? { key, notebookId, ym, highlight: null, sticker: null }),
+      key,
+      goals: next,
+      carried: true,
+      updatedAt: Date.now(),
+    });
+    const moved = new Set(take.map((g) => g.id));
+    await txPut(tx, "months", {
+      ...prev,
+      goals: (prev.goals ?? []).map((g) => (moved.has(g.id) ? { ...g, movedTo: ym } : g)),
+      updatedAt: Date.now(),
+    });
+    carried = take.length;
+  });
+  if (carried) emitChange();
+  return carried;
+}
+
 export function pagesInMonth(pages: Page[], ym: string) {
   return sortPagesByDate(pages.filter((p) => ymOf(p.date) === ym));
 }
@@ -563,11 +706,12 @@ export function collectAssetRefs(value: unknown, out: Set<string>) {
  */
 export async function collectGarbage(): Promise<number> {
   return withTx(
-    ["notebooks", "pages", "months", "artworks", "stickers", "assets"],
+    ["notebooks", "pages", "months", "artworks", "stickers", "assets", "settings"],
     "readwrite",
     async (tx) => {
       const refs = new Set<string>();
-      for (const store of ["pages", "months", "artworks", "stickers"] as const) {
+      // "settings" holds the home board, whose stickers reference assets too.
+      for (const store of ["pages", "months", "artworks", "stickers", "settings"] as const) {
         const rows = await txGetAll<unknown>(tx, store);
         collectAssetRefs(rows, refs);
       }
@@ -739,7 +883,7 @@ export async function listTrash(): Promise<TrashEntry[]> {
             kind: "notebook",
             id: n.id,
             title: n.name,
-            detail: `Notebook · ${count} ${count === 1 ? "page" : "pages"}`,
+            detail: `${t("Notebook")} · ${tn(count, "{n} page", "{n} pages")}`,
             deletedAt: n.deletedAt,
           });
         }
@@ -750,7 +894,7 @@ export async function listTrash(): Promise<TrashEntry[]> {
             kind: "page",
             id: p.id,
             title: `Page · ${formatDate(p.date)}`,
-            detail: `Page · ${nbName.get(p.notebookId) ?? "Unknown notebook"}`,
+            detail: `${t("Page")} · ${nbName.get(p.notebookId) ?? t("Unknown notebook")}`,
             deletedAt: p.deletedAt,
           });
         }
@@ -761,7 +905,7 @@ export async function listTrash(): Promise<TrashEntry[]> {
             kind: "sticker",
             id: s.id,
             title: s.name,
-            detail: "Sticker",
+            detail: t("Sticker"),
             deletedAt: s.deletedAt,
           });
         }
@@ -772,7 +916,7 @@ export async function listTrash(): Promise<TrashEntry[]> {
             kind: "artwork",
             id: a.id,
             title: a.name,
-            detail: "Draft",
+            detail: t("Draft"),
             deletedAt: a.deletedAt,
           });
         }
@@ -783,7 +927,7 @@ export async function listTrash(): Promise<TrashEntry[]> {
             kind: "image",
             id: a.id,
             title: a.name || "Imported image",
-            detail: "Imported image",
+            detail: t("Imported image"),
             deletedAt: a.deletedAt,
           });
         }

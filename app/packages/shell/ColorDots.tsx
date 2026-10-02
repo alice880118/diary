@@ -1,4 +1,5 @@
 import { useId } from "react";
+import { t } from "../i18n";
 
 /** Preset swatches plus a "+" that opens the system color picker. */
 export function ColorDots({
@@ -29,7 +30,7 @@ export function ColorDots({
         htmlFor={id}
         className={`swatch swatch-add${custom ? " is-active" : ""}`}
         style={custom ? { background: value } : undefined}
-        aria-label="Custom color"
+        aria-label={t("Custom color")}
       >
         {custom ? null : "+"}
         <input
