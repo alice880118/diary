@@ -7,6 +7,7 @@ import { fillCss } from "../shell/FillPicker";
 import { Icon } from "../shell/Icon";
 import { StickerArt } from "../sticker/StickerArt";
 import { PresetArt, presetById } from "./presets";
+import { PHYSICS, kick, requestMotionPermission, shakeDetector, step, type Body, type Rect, type World } from "./stickerPhysics";
 
 export type BoardMode = "stickers" | "doodle";
 
@@ -116,6 +117,20 @@ export function BoardView({
     setDragState(d);
   };
 
+  /** Sticker currently lifted by a finger (drag / pinch). */
+  const [lifted, setLifted] = useState<string | null>(null);
+  const itemEls = useRef(new Map<string, HTMLDivElement>());
+  const physics = useRef<{ bodies: Body[]; raf: number; last: number; t0: number } | null>(null);
+  const [scattering, setScattering] = useState(false);
+  /** Positions just committed by an interrupted scatter, until the board prop catches up. */
+  const pending = useRef<Map<string, BoardItem> | null>(null);
+  const tap = useRef<{ x: number; y: number; t: number } | null>(null);
+  const motionAsked = useRef(false);
+
+  useEffect(() => {
+    pending.current = null;
+  }, [board]);
+
   const dpr = typeof window === "undefined" ? 1 : Math.min(window.devicePixelRatio || 1, 2);
   const backing = (width * dpr) / BOARD_W;
 
@@ -130,7 +145,106 @@ export function BoardView({
   };
 
   const items = board.items.map((it) => (drag && it.id === drag.id ? drag : it)).sort((a, b) => a.z - b.z);
-  const find = (id: string) => board.items.find((it) => it.id === id) ?? null;
+  const find = (id: string) => pending.current?.get(id) ?? board.items.find((it) => it.id === id) ?? null;
+
+  /* ---------- scatter physics ---------- */
+
+  /** Walls = the visible board; solids = nav bar and floating controls, in board units. */
+  const worldNow = (): World | null => {
+    const br = boardRef.current?.getBoundingClientRect();
+    const host = scrollRef.current;
+    if (!br || !host) return null;
+    const hr = host.getBoundingClientRect();
+    const toRect = (r: DOMRect, pad = 6): Rect => ({
+      x0: (r.left - br.left) / s - pad,
+      y0: (r.top - br.top) / s - pad,
+      x1: (r.right - br.left) / s + pad,
+      y1: (r.bottom - br.top) / s + pad,
+    });
+    const frame = host.closest(".home-screen");
+    const solids: Rect[] = [];
+    frame?.querySelectorAll<HTMLElement>(".bottom-nav, .home-top > *").forEach((el) => solids.push(toRect(el.getBoundingClientRect())));
+    const nav = frame?.querySelector(".bottom-nav")?.getBoundingClientRect();
+    const bottom = Math.min(BOARD_H, (hr.bottom - br.top) / s, nav ? (nav.top - br.top) / s : Infinity);
+    return { bounds: { x0: 4, y0: 4, x1: BOARD_W - 4, y1: bottom - 4 }, solids };
+  };
+
+  const paint = (b: Body) => {
+    const el = itemEls.current.get(b.id);
+    if (!el) return;
+    el.style.left = `${b.cx - b.w / 2}px`;
+    el.style.top = `${b.cy - b.h / 2}px`;
+    el.style.transform = `rotate(${b.rot}deg)`;
+  };
+
+  const setLift = (id: string, on: boolean) => itemEls.current.get(id)?.firstElementChild?.classList.toggle("is-lifted", on);
+
+  /** Ends a scatter: settles everything where it is and commits one undo step. */
+  const endScatter = () => {
+    const ph = physics.current;
+    if (!ph) return;
+    cancelAnimationFrame(ph.raf);
+    physics.current = null;
+    setScattering(false);
+    const moved = new Map<string, BoardItem>();
+    for (const b of ph.bodies) {
+      setLift(b.id, false);
+      const it = board.items.find((x) => x.id === b.id);
+      if (it) moved.set(b.id, { ...it, x: b.cx / BOARD_W, y: b.cy / BOARD_W, rot: ((b.rot % 360) + 540) % 360 - 180 });
+    }
+    pending.current = moved;
+    onCommit((bd) => ({ ...bd, items: bd.items.map((it) => moved.get(it.id) ?? it) }));
+  };
+
+  const scatter = () => {
+    if (mode !== "stickers" || physics.current || gesture.current.kind !== "none") return;
+    const world = worldNow();
+    if (!world) return;
+    onSelect(null);
+    const bodies = board.items
+      .filter((it) => !(it.source === "preset" && presetById(it.presetId)?.flat))
+      .map((it) => {
+        const b = boxOf(it);
+        return kick({ id: it.id, cx: b.cx, cy: b.cy, w: b.w, h: b.h, rot: it.rot, vx: 0, vy: 0, vr: 0, settled: false });
+      });
+    if (!bodies.length) return;
+    for (const b of bodies) setLift(b.id, true);
+    setScattering(true);
+    const tick = (now: number) => {
+      const ph = physics.current;
+      if (!ph) return;
+      const dt = Math.min(0.033, (now - ph.last) / 1000);
+      ph.last = now;
+      const before = new Set(ph.bodies.filter((b) => b.settled).map((b) => b.id));
+      ph.bodies = step(ph.bodies, dt, world);
+      for (const b of ph.bodies) {
+        paint(b);
+        // Each sticker drops back onto the paper as soon as it comes to rest.
+        if (b.settled && !before.has(b.id)) setLift(b.id, false);
+      }
+      if (ph.bodies.every((b) => b.settled) || now - ph.t0 > PHYSICS.maxSeconds * 1000) {
+        endScatter();
+        return;
+      }
+      ph.raf = requestAnimationFrame(tick);
+    };
+    const now = performance.now();
+    physics.current = { bodies, raf: requestAnimationFrame(tick), last: now, t0: now };
+  };
+  const scatterRef = useRef(scatter);
+  scatterRef.current = scatter;
+
+  useEffect(() => () => {
+    if (physics.current) cancelAnimationFrame(physics.current.raf);
+  }, []);
+
+  // Shaking the phone scatters the stickers too.
+  useEffect(() => {
+    if (mode !== "stickers" || typeof window === "undefined") return;
+    const onMotion = shakeDetector(() => scatterRef.current());
+    window.addEventListener("devicemotion", onMotion);
+    return () => window.removeEventListener("devicemotion", onMotion);
+  }, [mode]);
 
   const commitInk = (r: SessionResult) => {
     if (!r) return;
@@ -159,11 +273,18 @@ export function BoardView({
     const target = e.target as HTMLElement;
     const itemEl = target.closest<HTMLElement>("[data-item]");
     const handle = target.closest("[data-handle]");
+    if (!motionAsked.current) {
+      // iOS only grants motion events (for shake) from a user gesture.
+      motionAsked.current = true;
+      void requestMotionPermission();
+    }
     if (mode === "stickers" && !itemEl && !handle && pointers.current.size === 0) {
-      // Empty board: just deselect.
-      if (!target.closest("[data-actions]")) onSelect(null);
+      // Empty board: a tap deselects, or scatters the stickers when nothing is selected.
+      tap.current = { x: e.clientX, y: e.clientY, t: performance.now() };
       return;
     }
+    // Grabbing a sticker mid-scatter settles the rest where they are.
+    if (mode === "stickers" && physics.current) endScatter();
     try {
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     } catch {
@@ -213,6 +334,7 @@ export function BoardView({
     const orig = id ? find(id) : null;
     if (!orig) return;
     onSelect(orig.id);
+    setLifted(orig.id);
     gesture.current = { kind: "move", id: orig.id, orig, sx: p.x, sy: p.y, cx: e.clientX, cy: e.clientY, moved: false };
   };
 
@@ -266,10 +388,18 @@ export function BoardView({
   const finishDrag = (cancelled: boolean) => {
     const d = dragRef.current;
     setDrag(null);
+    setLifted(null);
     if (d && !cancelled) onCommit((b) => ({ ...b, items: b.items.map((it) => (it.id === d.id ? d : it)) }));
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
+    const tp = tap.current;
+    tap.current = null;
+    if (tp && e.type === "pointerup" && Math.hypot(e.clientX - tp.x, e.clientY - tp.y) < 10 && performance.now() - tp.t < 400) {
+      if (selectedId) onSelect(null);
+      else scatter();
+      return;
+    }
     if (!pointers.current.has(e.pointerId)) return;
     pointers.current.delete(e.pointerId);
     const cancelled = e.type === "pointercancel";
@@ -295,9 +425,10 @@ export function BoardView({
     }
     gesture.current = { kind: "none" };
     if (g.kind === "move" || g.kind === "handle") finishDrag(cancelled);
+    else setLifted(null);
   };
 
-  const sel = mode === "stickers" && selectedId ? items.find((it) => it.id === selectedId) ?? null : null;
+  const sel = mode === "stickers" && selectedId && !lifted && !scattering ? items.find((it) => it.id === selectedId) ?? null : null;
   const fill = boardFill(board.background);
   const tex = TEXTURE[board.background.texture];
 
@@ -347,43 +478,20 @@ export function BoardView({
             <div
               key={it.id}
               data-item={it.id}
-              className="board-item"
-              style={{ left: b.cx - b.w / 2, top: b.cy - b.h / 2, width: b.w, height: b.h, transform: `rotate(${it.rot}deg)`, zIndex: 10 + it.z }}
+              ref={(el) => {
+                if (el) itemEls.current.set(it.id, el);
+                else itemEls.current.delete(it.id);
+              }}
+              className={`board-item${it.source === "preset" && presetById(it.presetId)?.flat ? " is-flat" : ""}`}
+              style={{ left: b.cx - b.w / 2, top: b.cy - b.h / 2, width: b.w, height: b.h, transform: `rotate(${it.rot}deg)`, zIndex: lifted === it.id ? 9000 : 10 + it.z }}
             >
-              <ItemArt it={it} w={b.w} h={b.h} />
+              {/* Lift layer: peel-up scale / shadow, springs back when released. */}
+              <div className={`board-lift${lifted === it.id ? " is-lifted" : ""}`}>
+                <ItemArt it={it} w={b.w} h={b.h} />
+              </div>
             </div>
           );
         })}
-        {sel
-          ? (() => {
-              const b = boxOf(sel);
-              const pad = 4 / s;
-              return (
-                <div
-                  className="board-sel"
-                  style={{
-                    left: b.cx - b.w / 2 - pad,
-                    top: b.cy - b.h / 2 - pad,
-                    width: b.w + pad * 2,
-                    height: b.h + pad * 2,
-                    transform: `rotate(${sel.rot}deg)`,
-                    borderWidth: 1.5 / s,
-                    borderRadius: 4 / s,
-                  }}
-                >
-                  <div
-                    data-handle
-                    className="board-handle-hit"
-                    role="button"
-                    aria-label={t("Resize and rotate")}
-                    style={{ width: 44 / s, height: 44 / s, right: -22 / s, bottom: -22 / s }}
-                  >
-                    <span style={{ width: 14 / s, height: 14 / s, borderWidth: 1.5 / s }} />
-                  </div>
-                </div>
-              );
-            })()
-          : null}
       </div>
       {sel && barStyle && actions ? (
         <div className="board-actbar" data-actions style={barStyle}>

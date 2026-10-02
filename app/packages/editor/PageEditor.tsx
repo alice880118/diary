@@ -59,7 +59,7 @@ export function PageEditor({
   const [inkTool, setInkTool] = useState<DrawTool>("brush");
   const [inkColor, setInkColor] = useState(SKETCH_COLORS[0]);
   const [prefs, setPrefs] = useDrawPrefs();
-  const ink = inkTool === "brush" || inkTool === "eraser" ? inkConfig(prefs, inkTool, inkColor, "#fffdf8") : null;
+  const ink = inkTool === "brush" || inkTool === "eraser" ? inkConfig(prefs, inkTool, inkColor, "#ffffff") : null;
   const [inkSel, setInkSel] = useState<string | null>(null);
   const styleSession = useRef(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
