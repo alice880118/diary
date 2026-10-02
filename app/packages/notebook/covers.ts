@@ -90,7 +90,7 @@ const LEGACY_COVERS: Cover[] = [
 ];
 
 /** Illustrated covers in public/covers, named 01, 02, ... */
-const IMAGE_COVER_COUNT = 5;
+const IMAGE_COVER_COUNT = 10;
 
 export const COVERS: Cover[] = Array.from({ length: IMAGE_COVER_COUNT }, (_, i) => {
   const id = String(i + 1).padStart(2, "0");
