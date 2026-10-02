@@ -40,7 +40,18 @@ import { finishSticker } from "../sticker/save";
 import { ArtCanvas, type ArtTool } from "./ArtCanvas";
 import { BgRemoveSheet } from "./BgRemoveSheet";
 import { FinishSheet } from "./FinishSheet";
-import { DrawBar, inkConfig, shapeStyle, useDrawPrefs, type DrawTool, type StylePatch } from "./DrawTools";
+import {
+  BRUSH_ICON,
+  BrushSettingsSheet,
+  DrawBar,
+  inkConfig,
+  PRINT_PREFS,
+  PRINT_PREFS_KEY,
+  shapeStyle,
+  useDrawPrefs,
+  type DrawTool,
+  type StylePatch,
+} from "./DrawTools";
 import {
   ColorButton,
   ImageAdjustPopover,
@@ -162,7 +173,11 @@ export function CreateEditor({
   const colorRef = useRef<HTMLButtonElement>(null);
   const adjustRef = useRef<HTMLButtonElement>(null);
   const [maskTool, setMaskTool] = useState<MaskTool>("brush");
-  const [brushSize, setBrushSize] = useState(48);
+  const [printPrefs, setPrintPrefs] = useDrawPrefs(PRINT_PREFS_KEY, PRINT_PREFS);
+  const [printBrushOpen, setPrintBrushOpen] = useState(false);
+  const printSizeKey = maskTool === "erase" ? "eraser" : printPrefs.brush;
+  const brushSize = printPrefs.sizes[printSizeKey];
+  const setBrushSize = (v: number) => setPrintPrefs({ sizes: { ...printPrefs.sizes, [printSizeKey]: v } });
   const [printView, setPrintView] = useState<PrintView>("composite");
   const [base, setBase] = useState<HTMLCanvasElement | null>(null);
   const [built, setBuilt] = useState<{ art: string; shape: string; w: number; h: number } | null>(null);
@@ -629,7 +644,8 @@ export function CreateEditor({
         paintMode && maskTool === "erase"
           ? art.print.layers.filter((l) => l.id !== pLayer.id).map((l) => rt.printMasks.get(l.id)).filter((m): m is HTMLCanvasElement => Boolean(m))
           : undefined;
-      tool = { kind: "maskBrush", canvas: c, size: brushSize, erase: maskTool === "erase", also };
+      const ink = inkConfig(printPrefs, maskTool === "erase" ? "eraser" : "brush", pLayer.color, "#ffffff");
+      tool = { kind: "maskBrush", canvas: c, ink, also };
     } else if (c) {
       tool = { kind: "lasso", purpose: maskTool === "lassoAdd" ? "maskAdd" : "maskSub" };
     }
@@ -1015,7 +1031,7 @@ export function CreateEditor({
                 {MASK_TOOLS.map((mt) => (
                   <ToolButton
                     key={mt.id}
-                    icon={mt.icon}
+                    icon={mt.id === "brush" ? BRUSH_ICON[printPrefs.brush] : mt.icon}
                     label={t(mt.label)}
                     active={maskTool === mt.id}
                     disabled={!pLayer || !art.print.enabled}
@@ -1023,7 +1039,10 @@ export function CreateEditor({
                       toolRefs.current[`m-${mt.id}`] = el;
                     }}
                     onClick={() => {
-                      if (mt.id === maskTool && (mt.id === "brush" || mt.id === "erase")) {
+                      if (mt.id === maskTool && mt.id === "brush") {
+                        setPop(null);
+                        setPrintBrushOpen(true);
+                      } else if (mt.id === maskTool && mt.id === "erase") {
                         setPop(pop === "maskSize" ? null : "maskSize");
                       } else {
                         setMaskTool(mt.id);
@@ -1064,6 +1083,14 @@ export function CreateEditor({
               size={brushSize}
               onSize={setBrushSize}
               ignore={[maskSizeRef, ...MASK_TOOLS.map((t) => ({ get current() { return toolRefs.current[`m-${t.id}`] ?? null; } }))]}
+            />
+            <BrushSettingsSheet
+              open={printBrushOpen}
+              onClose={() => setPrintBrushOpen(false)}
+              prefs={printPrefs}
+              color={pLayer?.color ?? "#1b1b1b"}
+              onBrush={(brush) => setPrintPrefs({ brush })}
+              onPrefs={setPrintPrefs}
             />
             <InkColorPopover
               open={pop === "inkColor" && (pLayer !== null || paintMode)}

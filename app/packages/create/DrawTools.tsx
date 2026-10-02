@@ -49,25 +49,35 @@ export const DEFAULT_PREFS: DrawPrefs = {
   outlineOn: true,
 };
 
+/** Print-step brush: the same engine, sized for painting where an ink prints. */
+export const PRINT_PREFS: DrawPrefs = {
+  ...DEFAULT_PREFS,
+  sizes: { pen: 48, marker: 48, pencil: 24, crayon: 48, pastel: 56, chalk: 48, dryBrush: 56, eraser: 48 },
+  opacity: { pen: 1, marker: 1, pencil: 1, crayon: 1, pastel: 1, chalk: 1, dryBrush: 1 },
+  hold: false,
+};
+
 const PREFS_KEY = "diary.drawPrefs";
+export const PRINT_PREFS_KEY = "diary.printBrushPrefs";
 const LEGACY_KEY = "diary.sketchBrushes";
 
 /** Tool settings remembered on this device only (a convenience, not document data). */
-export function useDrawPrefs() {
-  const [prefs, setPrefsState] = useState<DrawPrefs>(DEFAULT_PREFS);
+export function useDrawPrefs(key = PREFS_KEY, defaults = DEFAULT_PREFS) {
+  const [prefs, setPrefsState] = useState<DrawPrefs>(defaults);
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(PREFS_KEY);
+      const raw = localStorage.getItem(key);
       if (raw) {
         const p = JSON.parse(raw) as Partial<DrawPrefs>;
         setPrefsState({
-          ...DEFAULT_PREFS,
+          ...defaults,
           ...p,
-          sizes: { ...DEFAULT_PREFS.sizes, ...(p.sizes ?? {}) },
-          opacity: { ...DEFAULT_PREFS.opacity, ...(p.opacity ?? {}) },
+          sizes: { ...defaults.sizes, ...(p.sizes ?? {}) },
+          opacity: { ...defaults.opacity, ...(p.opacity ?? {}) },
         });
         return;
       }
+      if (key !== PREFS_KEY) return;
       // Carry over per-tool sizes from the previous toolbar.
       const old = localStorage.getItem(LEGACY_KEY);
       if (old) {
@@ -86,12 +96,13 @@ export function useDrawPrefs() {
     } catch {
       // Storage unavailable; defaults are fine.
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const setPrefs = (patch: Partial<DrawPrefs>) =>
     setPrefsState((cur) => {
       const next = { ...cur, ...patch };
       try {
-        localStorage.setItem(PREFS_KEY, JSON.stringify(next));
+        localStorage.setItem(key, JSON.stringify(next));
       } catch {
         // Ignore.
       }
@@ -133,7 +144,7 @@ export function shapeStyle(prefs: DrawPrefs, color: string): ShapeStyle {
 /* Small visuals                                                       */
 /* ------------------------------------------------------------------ */
 
-const BRUSH_ICON: Record<BrushKind, IconName> = {
+export const BRUSH_ICON: Record<BrushKind, IconName> = {
   pen: "pen2",
   marker: "marker",
   pencil: "pencil",

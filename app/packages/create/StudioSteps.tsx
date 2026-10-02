@@ -273,7 +273,7 @@ export function MaskSizePopover({
         <span className="slider-icon">
           <Icon name="size" size={18} />
         </span>
-        <input type="range" min={6} max={160} value={size} aria-label={t("Brush size")} onChange={(e) => onSize(Number(e.target.value))} />
+        <input type="range" min={1} max={160} value={size} aria-label={t("Brush size")} onChange={(e) => onSize(Number(e.target.value))} />
         <span className="slider-value">{size}</span>
       </label>
     </Popover>

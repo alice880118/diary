@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ART_H, ART_W, type Stroke } from "../db/types";
 import type { Box } from "../drawing/geometry";
 import { ShapeDrag, StrokeSession, type InkConfig, type SessionResult, type ShapeStyle } from "../drawing/session";
+import { drawStroke } from "../drawing/strokes";
 import { TransformBox, type BoxOp, type DragPhase } from "../drawing/TransformBox";
 
 export type ArtTool =
@@ -11,8 +12,13 @@ export type ArtTool =
   | { kind: "shape"; style: ShapeStyle }
   | { kind: "select" }
   | { kind: "moveImage" }
-  /** `also`: extra masks touched by the same stroke (paint-mode eraser clears every ink). */
-  | { kind: "maskBrush"; canvas: HTMLCanvasElement; size: number; erase: boolean; also?: HTMLCanvasElement[] }
+  /**
+   * Paints an ink mask with the sketch brush engine (brush type, texture,
+   * stabilizer, smoothing, hold to perfect, pen pressure); the stroke is
+   * stamped into the mask on release. `also`: extra masks touched by the
+   * same stroke (paint-mode eraser clears every ink).
+   */
+  | { kind: "maskBrush"; canvas: HTMLCanvasElement; ink: InkConfig; also?: HTMLCanvasElement[] }
   | { kind: "lasso"; purpose: "maskAdd" | "maskSub" | "crop" };
 
 type Gesture =
@@ -22,7 +28,7 @@ type Gesture =
   | { kind: "shapeDrag"; x: number; y: number }
   | { kind: "tap"; x: number; y: number; cx: number; cy: number; moved: boolean }
   | { kind: "move"; x: number; y: number }
-  | { kind: "mask"; x: number; y: number; snapshot: ImageData | null }
+  | { kind: "mask" }
   | { kind: "lasso"; pts: number[] };
 
 interface View {
@@ -195,21 +201,16 @@ export function ArtCanvas({
     }
   };
 
-  const paintMask = (x0: number, y0: number, x1: number, y1: number) => {
-    if (tool.kind !== "maskBrush") return;
+  /** Stamps a finished brush stroke into the ink mask(s). */
+  const stampMask = (r: SessionResult) => {
+    if (tool.kind !== "maskBrush" || !r) return;
+    const st = r.kind === "shape" ? r.shape : r.smoothed ?? r.stroke;
     for (const canvas of [tool.canvas, ...(tool.also ?? [])]) {
       const ctx = canvas.getContext("2d");
       if (!ctx) continue;
       ctx.save();
-      ctx.globalCompositeOperation = tool.erase ? "destination-out" : "source-over";
-      ctx.strokeStyle = "#fff";
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      ctx.lineWidth = tool.size;
-      ctx.beginPath();
-      ctx.moveTo(x0, y0);
-      ctx.lineTo(x1 + 0.01, y1);
-      ctx.stroke();
+      ctx.setTransform(canvas.width / ART_W, 0, 0, canvas.height / ART_H, 0, 0);
+      drawStroke(ctx, { ...st, color: "#ffffff" });
       ctx.restore();
     }
     repaintOverlay();
@@ -235,7 +236,8 @@ export function ArtCanvas({
 
   const cancelSingle = () => {
     const g = gesture.current;
-    if (g.kind === "ink") {
+    if (g.kind === "ink" || g.kind === "mask") {
+      // The first finger of a pinch must not leave a dab in the mask.
       live.current?.cancel();
       live.current = null;
     }
@@ -245,15 +247,6 @@ export function ArtCanvas({
     }
     if (g.kind === "lasso") clearLive();
     if (g.kind === "move") onImageDrag?.(0, 0, true);
-    if (g.kind === "mask") {
-      // The first finger of a pinch must not leave a dab in the mask.
-      if (g.snapshot && tool.kind === "maskBrush") {
-        tool.canvas.getContext("2d")?.putImageData(g.snapshot, 0, 0);
-        repaintOverlay();
-      } else {
-        onMaskEnd?.();
-      }
-    }
   };
 
   const onPointerDown = (e: React.PointerEvent) => {
@@ -301,12 +294,11 @@ export function ArtCanvas({
         onDragStart?.(p.x, p.y);
         return;
       case "maskBrush": {
-        const snapshot =
-          e.pointerType === "touch"
-            ? tool.canvas.getContext("2d")?.getImageData(0, 0, tool.canvas.width, tool.canvas.height) ?? null
-            : null;
-        gesture.current = { kind: "mask", x: p.x, y: p.y, snapshot };
-        paintMask(p.x, p.y, p.x, p.y);
+        const c = liveRef.current;
+        if (!c) return;
+        live.current = new StrokeSession(c, c.width / ART_W, tool.ink, { unitsPerPx: ART_W / (size * viewRef.current.z) });
+        live.current.add(p.x, p.y, e.timeStamp, e.pressure, e.pointerType);
+        gesture.current = { kind: "mask" };
         return;
       }
       case "lasso":
@@ -333,7 +325,7 @@ export function ArtCanvas({
     }
     const evs = typeof e.nativeEvent.getCoalescedEvents === "function" ? e.nativeEvent.getCoalescedEvents() : [];
     const list = evs.length ? evs : [e.nativeEvent];
-    if (g.kind === "ink") {
+    if (g.kind === "ink" || g.kind === "mask") {
       for (const ev of list) {
         const p = toArt(ev.clientX, ev.clientY);
         live.current?.add(p.x, p.y, ev.timeStamp, ev.pressure, ev.pointerType);
@@ -352,15 +344,6 @@ export function ArtCanvas({
     const p = toArt(e.clientX, e.clientY);
     if (g.kind === "move") {
       onImageDrag?.(p.x - g.x, p.y - g.y, false);
-      return;
-    }
-    if (g.kind === "mask") {
-      for (const ev of list) {
-        const q = toArt(ev.clientX, ev.clientY);
-        paintMask(g.x, g.y, q.x, q.y);
-        g.x = q.x;
-        g.y = q.y;
-      }
       return;
     }
     if (g.kind === "lasso") {
@@ -419,6 +402,17 @@ export function ArtCanvas({
       return;
     }
     if (g.kind === "mask") {
+      const session = live.current;
+      live.current = null;
+      if (!session) return;
+      if (cancelled) {
+        session.cancel();
+        return;
+      }
+      const p = toArt(e.clientX, e.clientY);
+      const r = session.finish(p.x, p.y);
+      if (!r) return;
+      stampMask(r);
       onMaskEnd?.();
       return;
     }
