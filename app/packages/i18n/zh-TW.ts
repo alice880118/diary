@@ -670,4 +670,11 @@ export const ZH_TW: Record<string, string> = {
   "Medium": "中等",
   "Semibold": "半粗",
   "Bold": "粗體",
+  "This browser has no motion sensor access.": "這個瀏覽器無法使用動作感測。",
+  "Motion access was declined. Clear this site's data in Safari settings, then allow it again.": "動作感測權限已被拒絕。請到 Safari 設定清除這個網站的資料，再重新允許。",
+  "Allow motion access to let stickers sway when you tilt or shake the phone.": "允許動作感測後，傾斜或搖晃手機時貼紙會跟著晃動。",
+  "On: tilt or shake the phone.": "已開啟：傾斜或搖晃手機試試看。",
+  "Allowed, waiting for sensor readings. In-app browsers (LINE, Instagram…) may block them; open in Safari or Chrome.": "已允許，等待感測資料中。LINE、Instagram 等 App 內建瀏覽器可能會封鎖，請改用 Safari 或 Chrome 開啟。",
+  "Sway with phone motion": "隨手機晃動",
+  "Allow": "允許",
 };

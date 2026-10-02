@@ -287,3 +287,31 @@
   width: 100%;
   padding: 0;
 }
+
+.motion-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0 4px;
+}
+
+.motion-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.motion-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #cfcfcf;
+  flex: none;
+}
+
+.motion-dot.is-on {
+  background: var(--success);
+}

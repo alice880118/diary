@@ -220,13 +220,46 @@ export function shakeDetector(onShake: () => void, threshold = 17, cooldownMs = 
   };
 }
 
-/** iOS asks for motion permission from a user gesture; elsewhere this is a no-op. */
-export async function requestMotionPermission(): Promise<boolean> {
-  const D = typeof DeviceMotionEvent === "undefined" ? undefined : (DeviceMotionEvent as unknown as { requestPermission?: () => Promise<string> });
-  if (!D?.requestPermission) return true;
-  try {
-    return (await D.requestPermission()) === "granted";
-  } catch {
-    return false;
+/**
+ * Motion sensor access. iOS 13+ needs DeviceMotionEvent.requestPermission(),
+ * called from a real tap (a drag doesn't count); until it's settled we keep
+ * asking on later taps. Other browsers deliver events without asking.
+ */
+export type MotionAccess = "unknown" | "granted" | "denied" | "unsupported";
+
+let access: MotionAccess = "unknown";
+const accessListeners = new Set<(a: MotionAccess) => void>();
+
+function setAccess(a: MotionAccess) {
+  access = a;
+  for (const l of accessListeners) l(a);
+}
+
+export function motionAccess(): MotionAccess {
+  if (access === "unknown" && typeof window !== "undefined") {
+    if (typeof DeviceMotionEvent === "undefined") access = "unsupported";
+    else if (!(DeviceMotionEvent as unknown as { requestPermission?: unknown }).requestPermission) access = "granted";
   }
+  return access;
+}
+
+export function onMotionAccess(fn: (a: MotionAccess) => void) {
+  accessListeners.add(fn);
+  return () => {
+    accessListeners.delete(fn);
+  };
+}
+
+/** Call from a tap/click handler. Resolves to the new state ("unknown" if the tap didn't qualify). */
+export async function requestMotionPermission(): Promise<MotionAccess> {
+  const cur = motionAccess();
+  if (cur !== "unknown") return cur;
+  const D = DeviceMotionEvent as unknown as { requestPermission: () => Promise<string> };
+  try {
+    const r = await D.requestPermission();
+    setAccess(r === "granted" ? "granted" : "denied");
+  } catch {
+    // Not a qualifying user gesture: stay "unknown" and try again on the next tap.
+  }
+  return access;
 }

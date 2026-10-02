@@ -9,6 +9,7 @@ import { BOARD_H, BOARD_W, type BoardItem, type BoardTexture, type HomeBoard } f
 import { ActButton, BOARD_COLORS, BoardView, type BoardMode } from "~/packages/home/BoardView";
 import { PRESETS, PresetArt, defaultItems } from "~/packages/home/presets";
 import { useBoardDoc } from "~/packages/home/useBoardDoc";
+import { motionAccess, onMotionAccess, requestMotionPermission, type MotionAccess } from "~/packages/home/stickerPhysics";
 import { t } from "~/packages/i18n";
 import { FillPicker, fillCss } from "~/packages/shell/FillPicker";
 import { Icon } from "~/packages/shell/Icon";
@@ -307,6 +308,53 @@ function AddStickerSheet({
   );
 }
 
+/** Phone motion status for the sway effect, with an explicit Allow button (a real tap, as iOS requires). */
+function MotionRow() {
+  const [access, setAccess] = useState<MotionAccess>(motionAccess());
+  const [live, setLive] = useState(false);
+  useEffect(() => onMotionAccess(setAccess), []);
+  useEffect(() => {
+    // Shows whether sensor readings actually arrive.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const on = () => {
+      setLive(true);
+      clearTimeout(timer);
+      timer = setTimeout(() => setLive(false), 1500);
+    };
+    window.addEventListener("devicemotion", on);
+    return () => {
+      window.removeEventListener("devicemotion", on);
+      clearTimeout(timer);
+    };
+  }, []);
+  const status =
+    access === "unsupported"
+      ? t("This browser has no motion sensor access.")
+      : access === "denied"
+        ? t("Motion access was declined. Clear this site's data in Safari settings, then allow it again.")
+        : access === "unknown"
+          ? t("Allow motion access to let stickers sway when you tilt or shake the phone.")
+          : live
+            ? t("On: tilt or shake the phone.")
+            : t("Allowed, waiting for sensor readings. In-app browsers (LINE, Instagram…) may block them; open in Safari or Chrome.");
+  return (
+    <div className="motion-row">
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="motion-title">
+          <span className={`motion-dot${access === "granted" && live ? " is-on" : ""}`} aria-hidden />
+          {t("Sway with phone motion")}
+        </div>
+        <div className="muted small">{status}</div>
+      </div>
+      {access === "unknown" ? (
+        <button type="button" className="btn btn-sm btn-primary" onClick={() => void requestMotionPermission()}>
+          {t("Allow")}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 function BoardSheet({
   open,
   board,
@@ -366,6 +414,7 @@ function BoardSheet({
           </button>
         ))}
       </div>
+      <MotionRow />
       <label className="row-between board-toggle">
         <span>{t("Background shapes")}</span>
         <input type="checkbox" role="switch" className="toggle" checked={bg.shapes} onChange={(e) => onBg({ shapes: e.target.checked })} />

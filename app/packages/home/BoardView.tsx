@@ -12,6 +12,7 @@ import {
   PHYSICS,
   isIOSDevice,
   kick,
+  motionAccess,
   motionReader,
   nudge,
   requestMotionPermission,
@@ -326,16 +327,19 @@ export function BoardView({
     return () => window.removeEventListener("devicemotion", onMotion);
   }, [mode]);
 
-  // iOS only grants motion events after a tap; ask on the first one (click/touchend count as user gestures).
+  // iOS only grants motion events from a real tap: keep asking on taps/clicks until it's answered.
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || motionAccess() !== "unknown") return;
     const ask = () => {
-      void requestMotionPermission();
-      window.removeEventListener("touchend", ask);
-      window.removeEventListener("click", ask);
+      void requestMotionPermission().then((a) => {
+        if (a !== "unknown") {
+          window.removeEventListener("touchend", ask);
+          window.removeEventListener("click", ask);
+        }
+      });
     };
-    window.addEventListener("touchend", ask, { once: true });
-    window.addEventListener("click", ask, { once: true });
+    window.addEventListener("touchend", ask);
+    window.addEventListener("click", ask);
     return () => {
       window.removeEventListener("touchend", ask);
       window.removeEventListener("click", ask);
