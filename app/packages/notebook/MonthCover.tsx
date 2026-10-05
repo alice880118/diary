@@ -6,7 +6,6 @@ import { coverOfMonth, listStickers, updateMonth } from "../db/repo";
 import type { CoverFix, CoverShape, MonthCover, MonthlyOverview, Page, StickerSnap, TapePattern } from "../db/types";
 import { t } from "../i18n";
 import { noteShapeCss, TAPE_COLORS, TAPE_PATTERNS, tapeFill } from "../page/ObjectViews";
-import { HsvPicker } from "../shell/HsvPicker";
 import { Icon } from "../shell/Icon";
 import { Sheet } from "../shell/Sheet";
 import { Tape } from "../shell/Tape";
@@ -106,24 +105,16 @@ const FIXES: { id: CoverFix; label: string }[] = [
 const PAPERS = ["#fff1a1", "#fbd3dc", "#cfe4fb", "#d6f3cc", "#e2cda7", "#fdfaf0"];
 
 function Swatches({ colors, value, onChange, label }: { colors: string[]; value: string; onChange: (c: string) => void; label: string }) {
-  const [picking, setPicking] = useState(false);
   const custom = !colors.includes(value);
   return (
     <div className="swatch-row">
       {colors.map((c) => (
         <button key={c} type="button" className={`swatch-dot${value === c ? " is-active" : ""}`} style={{ background: c }} aria-label={c} aria-pressed={value === c} onClick={() => onChange(c)} />
       ))}
-      <button
-        type="button"
-        className={`swatch-dot is-add${custom || picking ? " is-active" : ""}`}
-        style={custom ? { background: value } : undefined}
-        aria-label={label}
-        aria-expanded={picking}
-        onClick={() => setPicking((v) => !v)}
-      >
+      <label className={`swatch-dot is-add${custom ? " is-active" : ""}`} style={custom ? { background: value } : undefined} aria-label={label}>
         {custom ? null : <Icon name="plus" size={16} />}
-      </button>
-      {picking ? <HsvPicker value={value} onChange={(c) => onChange(c)} /> : null}
+        <input type="color" value={value} onChange={(e) => onChange(e.target.value)} />
+      </label>
     </div>
   );
 }
