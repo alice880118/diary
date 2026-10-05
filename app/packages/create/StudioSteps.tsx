@@ -267,9 +267,11 @@ export function InkColorPopover({
         <ColorDots
           colors={INK_PALETTE.map((c) => ({ value: c.color, label: t(c.name) }))}
           value={color}
-          onChange={(c, live) => {
+          onChange={(c, live, fromPicker) => {
             onPick(c, live);
-            if (!live) onClose();
+            // Only a swatch tap closes: closing on system picker changes
+            // would unmount its input and close the picker mid-drag.
+            if (!live && !fromPicker) onClose();
           }}
         />
       </div>
