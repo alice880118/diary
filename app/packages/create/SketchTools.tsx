@@ -163,7 +163,8 @@ export function PalettePopover({
   open: boolean;
   onClose: () => void;
   color: string;
-  onPick: (c: string) => void;
+  /** `live`: mid-drag in the system picker (the popover stays open). */
+  onPick: (c: string, live?: boolean) => void;
   ignore: RefObject<HTMLElement | null>[];
   bottom?: number | string;
   /** Defaults to the sketch colors. */
@@ -176,9 +177,9 @@ export function PalettePopover({
         <ColorDots
           colors={colors ?? SKETCH_COLORS.map((c) => ({ value: c, label: c }))}
           value={color}
-          onChange={(c) => {
-            onPick(c);
-            onClose();
+          onChange={(c, live) => {
+            onPick(c, live);
+            if (!live) onClose();
           }}
         />
       </div>
