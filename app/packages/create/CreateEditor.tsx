@@ -637,10 +637,18 @@ export function CreateEditor({
     setSelectedObj(copy.id);
   };
 
-  /** Print color pick: moves the selection to that color's ink in paint mode, else recolors the ink. */
-  const pickInkColor = (c: string) => {
+  /**
+   * Print color pick: moves the selection to that color's ink in paint mode,
+   * else recolors the ink. `live` (mid-drag in the system picker) only
+   * previews a recolor; inks are picked or created on the final color.
+   */
+  const pickInkColor = (c: string, live?: boolean) => {
+    if (live) {
+      if (!paintMode && pLayer) setPrintLayer({ ...pLayer, color: c }, false);
+      return;
+    }
     if (!paintMode) {
-      if (pLayer) setPrintLayer({ ...pLayer, color: c });
+      if (pLayer) setPrintLayer({ ...pLayer, color: c }, true);
       else pickPaintColor(c);
       return;
     }
@@ -1092,7 +1100,7 @@ export function CreateEditor({
               open={pop === "inkColor" && pLayer !== null}
               onClose={() => setPop(null)}
               color={pLayer?.color ?? ""}
-              onPick={(c) => pLayer && setPrintLayer({ ...pLayer, color: c })}
+              onPick={(c, live) => pLayer && setPrintLayer({ ...pLayer, color: c }, !live)}
               ignore={[]}
             />
           </>

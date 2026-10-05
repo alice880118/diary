@@ -407,7 +407,7 @@ export function FillPopover({
         </label>
         {fillOn && !monochrome ? (
           <div className="palette is-compact" style={{ marginTop: 8 }}>
-            <ColorDots colors={colors} value={state.fillColor} onChange={(c) => onChange({ fillColor: c, fill: { kind: "solid", color: c } })} />
+            <ColorDots colors={colors} value={state.fillColor} onChange={(c, live) => onChange({ fillColor: c, fill: { kind: "solid", color: c } }, live === true)} />
           </div>
         ) : null}
         <hr className="soft-hr" />
@@ -419,7 +419,7 @@ export function FillPopover({
           <>
             {monochrome ? null : (
               <div className="palette is-compact" style={{ marginTop: 8 }}>
-                <ColorDots colors={colors} value={state.strokeColor} onChange={(c) => onChange({ strokeColor: c })} />
+                <ColorDots colors={colors} value={state.strokeColor} onChange={(c, live) => onChange({ strokeColor: c }, live === true)} />
               </div>
             )}
             <Slider label={t("Stroke width")} icon="size" min={1} max={120} value={state.width} display={String(state.width)} onChange={(v) => onChange({ width: v }, true)} onEnd={() => onChange({}, false)} />
@@ -471,7 +471,8 @@ export function DrawBar({
   prefs: DrawPrefs;
   onPrefs: (p: Partial<DrawPrefs>) => void;
   color: string;
-  onColor: (c: string) => void;
+  /** `live`: mid-drag in the system color picker; a final call follows. */
+  onColor: (c: string, live?: boolean) => void;
   selection: Stroke | null;
   /** continuous = mid-drag (one undo step for the whole drag). */
   onSelectionStyle: (patch: StylePatch, continuous?: boolean) => void;
@@ -601,9 +602,10 @@ export function DrawBar({
         color={shownColor}
         colors={palette}
         title={paletteTitle}
-        onPick={(c) => {
-          onColor(c);
-          if (sel && !monochrome) onSelectionStyle({ color: c });
+        onPick={(c, live) => {
+          onColor(c, live);
+          // One undo step for a whole drag in the system picker.
+          if (sel && !monochrome) onSelectionStyle({ color: c }, live === true);
           if (tool === "eraser") onTool("brush");
         }}
         ignore={ignore}

@@ -257,7 +257,8 @@ export function InkColorPopover({
   open: boolean;
   onClose: () => void;
   color: string;
-  onPick: (c: string) => void;
+  /** `live`: mid-drag in the system picker (the popover stays open). */
+  onPick: (c: string, live?: boolean) => void;
   ignore: RefObject<HTMLElement | null>[];
 }) {
   return (
@@ -266,9 +267,9 @@ export function InkColorPopover({
         <ColorDots
           colors={INK_PALETTE.map((c) => ({ value: c.color, label: t(c.name) }))}
           value={color}
-          onChange={(c) => {
-            onPick(c);
-            onClose();
+          onChange={(c, live) => {
+            onPick(c, live);
+            if (!live) onClose();
           }}
         />
       </div>
