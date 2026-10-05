@@ -1,5 +1,7 @@
+import { useState } from "react";
 import type { ColorFill } from "../db/types";
 import { t } from "../i18n";
+import { HsvPicker } from "./HsvPicker";
 import { Icon } from "./Icon";
 
 export const SOLID_COLORS = [
@@ -51,6 +53,7 @@ export function luminance(hex: string): number {
 
 /** Palette dots plus a custom color input. */
 export function ColorDotsPicker({ colors = SOLID_COLORS, value, onChange }: { colors?: string[]; value: string; onChange: (c: string) => void }) {
+  const [picking, setPicking] = useState(false);
   const custom = !colors.some((c) => c.toLowerCase() === value.toLowerCase());
   return (
     <div className="fill-dots">
@@ -65,16 +68,24 @@ export function ColorDotsPicker({ colors = SOLID_COLORS, value, onChange }: { co
           onClick={() => onChange(c)}
         />
       ))}
-      <label className={`fill-dot is-add${custom ? " is-active" : ""}`} style={custom ? { background: value } : undefined} aria-label={t("Custom color")}>
+      <button
+        type="button"
+        className={`fill-dot is-add${custom || picking ? " is-active" : ""}`}
+        style={custom ? { background: value } : undefined}
+        aria-label={t("Custom color")}
+        aria-expanded={picking}
+        onClick={() => setPicking((v) => !v)}
+      >
         {custom ? null : <Icon name="plus" size={16} />}
-        <input type="color" value={/^#[0-9a-f]{6}$/i.test(value) ? value : "#ffffff"} onChange={(e) => onChange(e.target.value)} />
-      </label>
+      </button>
+      {picking ? <HsvPicker value={/^#[0-9a-f]{6}$/i.test(value) ? value : "#ffffff"} onChange={(c) => onChange(c)} /> : null}
     </div>
   );
 }
 
 /** Solid or gradient fill editor. */
 export function FillPicker({ value, onChange }: { value: ColorFill; onChange: (f: ColorFill) => void }) {
+  const [stop, setStop] = useState<"from" | "to" | null>(null);
   const grad = value.kind === "gradient" ? value : { kind: "gradient" as const, from: value.color, to: "#ffffff", angle: 180 };
   return (
     <div className="fill-picker">
@@ -106,16 +117,14 @@ export function FillPicker({ value, onChange }: { value: ColorFill; onChange: (f
             })}
           </div>
           <div className="fill-stops">
-            <label className="fill-stop">
+            <button type="button" className={`fill-stop${stop === "from" ? " is-active" : ""}`} aria-expanded={stop === "from"} onClick={() => setStop(stop === "from" ? null : "from")}>
               <span style={{ background: value.from }} />
               {t("From")}
-              <input type="color" value={value.from} onChange={(e) => onChange({ ...value, from: e.target.value })} />
-            </label>
-            <label className="fill-stop">
+            </button>
+            <button type="button" className={`fill-stop${stop === "to" ? " is-active" : ""}`} aria-expanded={stop === "to"} onClick={() => setStop(stop === "to" ? null : "to")}>
               <span style={{ background: value.to }} />
               {t("To")}
-              <input type="color" value={value.to} onChange={(e) => onChange({ ...value, to: e.target.value })} />
-            </label>
+            </button>
             <div className="fill-angles">
               {ANGLES.map((a) => (
                 <button
@@ -131,6 +140,7 @@ export function FillPicker({ value, onChange }: { value: ColorFill; onChange: (f
               ))}
             </div>
           </div>
+          {stop ? <HsvPicker key={stop} value={value[stop]} onChange={(c) => onChange({ ...value, [stop]: c })} /> : null}
         </>
       )}
     </div>

@@ -1,5 +1,7 @@
+import { useState } from "react";
 import type { TextObject, TextWeight } from "../db/types";
 import { FONTS, TEXT_COLORS } from "../page/fonts";
+import { HsvPicker } from "../shell/HsvPicker";
 import { Sheet } from "../shell/Sheet";
 import { t } from "../i18n";
 
@@ -19,6 +21,8 @@ export function TextPanel({
   onChange: (patch: Partial<TextObject>) => void;
   onClose: () => void;
 }) {
+  const [picking, setPicking] = useState(false);
+  const custom = obj ? !TEXT_COLORS.some((c) => c.toLowerCase() === obj.color.toLowerCase()) : false;
   return (
     <Sheet open={obj !== null} title={t("Text")} onClose={onClose} modal={false}>
       {obj ? (
@@ -93,8 +97,18 @@ export function TextPanel({
                 onClick={() => onChange({ color: c })}
               />
             ))}
-            <input type="color" value={obj.color} aria-label={t("Custom text color")} onChange={(e) => onChange({ color: e.target.value })} />
+            <button
+              type="button"
+              className={`swatch swatch-add${custom || picking ? " is-active" : ""}`}
+              style={{ flex: "0 0 auto", width: 30, height: 30, ...(custom ? { background: obj.color } : null) }}
+              aria-label={t("Custom text color")}
+              aria-expanded={picking}
+              onClick={() => setPicking((v) => !v)}
+            >
+              {custom ? null : "+"}
+            </button>
           </div>
+          {picking ? <HsvPicker value={/^#[0-9a-f]{6}$/i.test(obj.color) ? obj.color : "#000000"} onChange={(c) => onChange({ color: c })} /> : null}
         </>
       ) : null}
     </Sheet>

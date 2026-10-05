@@ -653,6 +653,13 @@ export function CreateEditor({
       return;
     }
     if (!selStroke || !pLayer) {
+      // Adjusting the color before painting anything: recolor the empty ink
+      // instead of leaving it behind and starting another.
+      if (pLayer && emptyMasks.has(pLayer.id) && !inkOfColor(c)) {
+        const name = INK_PALETTE.find((x) => x.color.toLowerCase() === c.toLowerCase())?.name ?? "Custom";
+        setPrintLayer({ ...pLayer, color: c, name }, true);
+        return;
+      }
       pickPaintColor(c);
       return;
     }

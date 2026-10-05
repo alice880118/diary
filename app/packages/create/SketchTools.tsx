@@ -177,9 +177,10 @@ export function PalettePopover({
         <ColorDots
           colors={colors ?? SKETCH_COLORS.map((c) => ({ value: c, label: c }))}
           value={color}
-          onChange={(c, live) => {
+          onChange={(c, live, fromPicker) => {
             onPick(c, live);
-            if (!live) onClose();
+            // Stay open while adjusting in the color picker.
+            if (!live && !fromPicker) onClose();
           }}
         />
       </div>

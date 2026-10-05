@@ -1562,6 +1562,10 @@ html[data-motion="reduce"] *::after {
   cursor: pointer;
 }
 
+.fill-stop.is-active {
+  box-shadow: var(--ring-sel);
+}
+
 .fill-stop span {
   width: 22px;
   height: 22px;
@@ -1589,4 +1593,77 @@ html[data-motion="reduce"] *::after {
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-soft);
   margin-bottom: 12px;
+}
+
+/* ---------- In-app color picker ---------- */
+.hsv-picker {
+  /* Full row under the swatches, in flex and grid swatch rows alike. */
+  flex: 1 0 100%;
+  grid-column: 1 / -1;
+  justify-self: stretch;
+  width: 100%;
+  display: grid;
+  gap: 12px;
+  padding: 12px 2px 4px;
+}
+
+.hsv-sv,
+.hsv-hue {
+  position: relative;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: crosshair;
+}
+
+.hsv-sv {
+  height: 140px;
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.08);
+}
+
+.hsv-hue {
+  height: 18px;
+  margin: 0 9px;
+  border-radius: 9px;
+  background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+}
+
+/* Wider touch target than the visible bar. */
+.hsv-hue::before {
+  content: "";
+  position: absolute;
+  inset: -12px -9px;
+}
+
+.hsv-thumb {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.2), 0 2px 6px rgb(0 0 0 / 0.25);
+  pointer-events: none;
+}
+
+.hsv-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hsv-preview {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid rgb(0 0 0 / 0.1);
+}
+
+.hsv-hex {
+  min-height: 36px;
+  padding: 6px 10px;
+  font-variant-numeric: tabular-nums;
+  text-transform: lowercase;
 }
